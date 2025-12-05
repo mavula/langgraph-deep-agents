@@ -1,0 +1,26 @@
+[Unit]
+Description=LangGraph Deep Agents
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mavula
+Group=mavula
+WorkingDirectory=/home/mavula/langgraph-deep-agents
+
+# Load environment variables from .env (optional, but handy)
+EnvironmentFile=/home/mavula/langgraph-deep-agents/.env
+
+# Start LangGraph via uvx with the in-memory CLI build
+ExecStart=/snap/bin/uvx --refresh --from "langgraph-cli[inmem]" --with-editable . --python 3.11 langgraph dev \
+  --allow-blocking \
+  --port 2024 \
+  --host 0.0.0.0 \
+  --config /home/mavula/langgraph-deep-agents/langgraph.json
+
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

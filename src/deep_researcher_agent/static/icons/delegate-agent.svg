@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">Delegate Agent Icon</title>
+  <desc id="desc">Interlocking nodes representing coordinated sub-agents.</desc>
+  <defs>
+    <linearGradient id="grid" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#13293d"/>
+      <stop offset="100%" stop-color="#1f3e5a"/>
+    </linearGradient>
+    <linearGradient id="node" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#c6f6ff"/>
+      <stop offset="100%" stop-color="#4dd2ff"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="20" fill="url(#grid)"/>
+  <g stroke="#4dd2ff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity="0.9">
+    <path d="M32 80 64 48l32 32"/>
+    <path d="M40 92h48l8-12"/>
+    <path d="M48 40h32"/>
+  </g>
+  <g fill="url(#node)" stroke="#0b2a40" stroke-width="3">
+    <circle cx="64" cy="48" r="11"/>
+    <circle cx="32" cy="80" r="11"/>
+    <circle cx="96" cy="80" r="11"/>
+    <circle cx="48" cy="40" r="9" opacity="0.85"/>
+    <circle cx="88" cy="80" r="7" opacity="0.85"/>
+  </g>
+</svg>

@@ -40,7 +40,10 @@ packages = [
 
 
 [tool.setuptools.package-data]
-"*" = ["py.typed"]
+"deep_researcher_agent" = [
+    "static/icons/*.svg",
+    "py.typed",
+]
 
 [tool.ruff]
 lint.select = [

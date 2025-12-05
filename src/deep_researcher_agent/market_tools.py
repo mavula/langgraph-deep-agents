@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import datetime as dt
+import json
+from array import array
 from functools import lru_cache
 from typing import Annotated, Any, Optional, TypedDict, Union
 
@@ -308,10 +310,84 @@ class ZoneRepository:
             return list(cursor.fetchall())
 
 
+class ZoneNoteRepository:
+    """Repository for inserting zone notes into ai_zone_notes."""
+
+    def __init__(self, db: DatabaseClient, table: str = "ai_zone_notes") -> None:
+        self._db = db
+        self._table = table
+
+    @classmethod
+    def from_env(cls, db: DatabaseClient) -> "ZoneNoteRepository":
+        return cls(db=db, table="ai_zone_notes")
+
+    def insert_note(self, payload: dict[str, Any]) -> int:
+        columns = []
+        placeholders = []
+        values: list[Any] = []
+        for key, value in payload.items():
+            if value is None:
+                continue
+            columns.append(key)
+            placeholders.append("%s")
+            values.append(value)
+
+        if not columns:
+            raise ValueError("No values provided for ai_zone_notes insert.")
+
+        sql = f"INSERT INTO {self._table} ({', '.join(columns)}) VALUES ({', '.join(placeholders)})"
+        with self._db.connection() as conn, conn.cursor() as cursor:
+            cursor.execute(sql, tuple(values))
+            return int(cursor.lastrowid)
+
+
+class ZoneTouchRepository:
+    """Repository for inserting zone touches into ai_zone_touches."""
+
+    def __init__(self, db: DatabaseClient, table: str = "ai_zone_touches") -> None:
+        self._db = db
+        self._table = table
+
+    @classmethod
+    def from_env(cls, db: DatabaseClient) -> "ZoneTouchRepository":
+        return cls(db=db, table="ai_zone_touches")
+
+    def insert_touch(self, payload: dict[str, Any]) -> int:
+        columns = []
+        placeholders = []
+        values: list[Any] = []
+        for key, value in payload.items():
+            if value is None:
+                continue
+            columns.append(key)
+            placeholders.append("%s")
+            values.append(value)
+
+        if not columns:
+            raise ValueError("No values provided for ai_zone_touches insert.")
+
+        sql = f"INSERT INTO {self._table} ({', '.join(columns)}) VALUES ({', '.join(placeholders)})"
+        with self._db.connection() as conn, conn.cursor() as cursor:
+            cursor.execute(sql, tuple(values))
+            return int(cursor.lastrowid)
+
+
 def _get_zone_repo() -> ZoneRepository:
     config = DatabaseConfig.from_env()
     db_client = DatabaseClient(config)
     return ZoneRepository.from_env(db_client)
+
+
+def _get_zone_note_repo() -> ZoneNoteRepository:
+    config = DatabaseConfig.from_env()
+    db_client = DatabaseClient(config)
+    return ZoneNoteRepository.from_env(db_client)
+
+
+def _get_zone_touch_repo() -> ZoneTouchRepository:
+    config = DatabaseConfig.from_env()
+    db_client = DatabaseClient(config)
+    return ZoneTouchRepository.from_env(db_client)
 
 
 def _coerce_bool(value: Optional[bool | int | str]) -> Optional[int]:
@@ -434,8 +510,139 @@ def get_zones(
     return repo.fetch_zones(symbol=symbol, timeframe=timeframe, status=status, zone_type=zone_type, limit=limit)
 
 
+def _normalize_tags(tags: Optional[str | list[str]]) -> Optional[str]:
+    if tags is None:
+        return None
+    if isinstance(tags, list):
+        return ",".join(tag.strip() for tag in tags if tag.strip())
+    return tags
+
+
+def _serialize_embedding(embedding: Optional[bytes | bytearray | list[float] | tuple[float, ...] | str]) -> Optional[bytes]:
+    if embedding is None:
+        return None
+    if isinstance(embedding, (bytes, bytearray)):
+        return bytes(embedding)[:8192]
+    if isinstance(embedding, str):
+        return embedding.encode("utf-8")[:8192]
+
+    floats = array("f", [float(value) for value in embedding])
+    return floats.tobytes()[:8192]
+
+
+def _serialize_metadata(metadata: Optional[dict[str, Any] | list[Any] | str]) -> Optional[str]:
+    if metadata is None:
+        return None
+    if isinstance(metadata, str):
+        return metadata
+    try:
+        return json.dumps(metadata)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("metadata must be JSON-serializable") from exc
+
+
+@tool
+def add_zone_note(
+    zone_id: Annotated[int, "Existing ai_zones.id to attach the note to."],
+    symbol: Annotated[str, "Symbol identifier that matches the zone."],
+    timeframe: Annotated[str, "Timeframe string that matches the zone (e.g., 1H, 4H, 1D)."],
+    content: Annotated[str, "Detailed note content to persist for the zone."],
+    title: Annotated[Optional[str], "Optional note title."] = None,
+    tags: Annotated[Optional[str | list[str]], "Optional tags as comma-separated string or list."] = None,
+    author: Annotated[Optional[str], "Optional author identifier."] = None,
+    source: Annotated[Optional[str], "Optional source label (e.g., agent, manual)."] = None,
+    embedding: Annotated[
+        Optional[bytes | bytearray | list[float] | tuple[float, ...] | str],
+        "Optional serialized embedding for RAG. Bytes, utf-8 string, or list/tuple of floats (float32).",
+    ] = None,
+    metadata: Annotated[
+        Optional[dict[str, Any] | list[Any] | str],
+        "Optional JSON metadata for the note (stored in metadata_json).",
+    ] = None,
+) -> dict[str, Any]:
+    """Insert a detailed note for a specific zone into ai_zone_notes."""
+
+    repo = _get_zone_note_repo()
+    payload = {
+        "zone_id": zone_id,
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "title": title,
+        "content": content,
+        "tags": _normalize_tags(tags),
+        "author": author,
+        "source": source,
+        "embedding": _serialize_embedding(embedding),
+        "metadata_json": _serialize_metadata(metadata),
+    }
+    note_id = repo.insert_note(payload)
+    return {"note_id": note_id, "status": "created"}
+
+
+@tool
+def add_zone_touch(
+    zone_id: Annotated[int, "Existing ai_zones.id to attach the touch to."],
+    symbol: Annotated[str, "Symbol identifier that matches the zone."],
+    timeframe: Annotated[str, "Timeframe enum value: 1m,3m,5m,10m,15m,30m,1H,4H,1D."],
+    touch_number: Annotated[int, "Ordinal touch number for the zone (1-based)."],
+    touch_start_ts: Annotated[str, "Touch start timestamp (YYYY-MM-DD HH:MM:SS)."],
+    touch_end_ts: Annotated[Optional[str], "Optional touch end timestamp (YYYY-MM-DD HH:MM:SS)."] = None,
+    touch_price_low: Annotated[Optional[float], "Low price during the touch."] = None,
+    touch_price_high: Annotated[Optional[float], "High price during the touch."] = None,
+    touch_price_close: Annotated[Optional[float], "Close price during the touch."] = None,
+    candle_open: Annotated[Optional[float], "Open price of the reference candle."] = None,
+    candle_high: Annotated[Optional[float], "High price of the reference candle."] = None,
+    candle_low: Annotated[Optional[float], "Low price of the reference candle."] = None,
+    candle_close: Annotated[Optional[float], "Close price of the reference candle."] = None,
+    candle_volume: Annotated[Optional[int], "Volume of the reference candle."] = None,
+    touch_type: Annotated[
+        Optional[str],
+        "Touch type enum: WICK, BODY, MID, FRONT_RUN, OTHER. Defaults to OTHER.",
+    ] = "OTHER",
+    zone_status_before: Annotated[
+        Optional[str],
+        "Zone status before touch: PENDING, ACTIVE, TOUCHED, VIOLATED, INVALIDATED.",
+    ] = None,
+    zone_status_after: Annotated[
+        Optional[str],
+        "Zone status after touch: PENDING, ACTIVE, TOUCHED, VIOLATED, INVALIDATED.",
+    ] = None,
+    reaction_outcome: Annotated[
+        Optional[str],
+        "Reaction outcome enum: RESPECTED, REJECTED, BROKEN, NO_FILL, OTHER.",
+    ] = None,
+    reaction_comment: Annotated[Optional[str], "Optional reaction comment."] = None,
+) -> dict[str, Any]:
+    """Insert a touch event for a zone into ai_zone_touches."""
+
+    repo = _get_zone_touch_repo()
+    payload = {
+        "zone_id": zone_id,
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "touch_number": touch_number,
+        "touch_start_ts": touch_start_ts,
+        "touch_end_ts": touch_end_ts,
+        "touch_price_low": touch_price_low,
+        "touch_price_high": touch_price_high,
+        "touch_price_close": touch_price_close,
+        "candle_open": candle_open,
+        "candle_high": candle_high,
+        "candle_low": candle_low,
+        "candle_close": candle_close,
+        "candle_volume": candle_volume,
+        "touch_type": touch_type,
+        "zone_status_before": zone_status_before,
+        "zone_status_after": zone_status_after,
+        "reaction_outcome": reaction_outcome,
+        "reaction_comment": reaction_comment,
+    }
+    touch_id = repo.insert_touch(payload)
+    return {"touch_id": touch_id, "status": "created"}
+
+
 TRADING_TOOLS = [get_candles, get_ema, get_current_date, compare_dates]
-ZONE_TOOLS = [create_zone, update_zone, get_zones]
+ZONE_TOOLS = [create_zone, update_zone, get_zones, add_zone_note, add_zone_touch]
 MARKET_TOOLS = [*TRADING_TOOLS, *ZONE_TOOLS]
 
 __all__ = [
@@ -450,4 +657,8 @@ __all__ = [
     "update_zone",
     "get_zones",
     "ZoneRepository",
+    "ZoneNoteRepository",
+    "ZoneTouchRepository",
+    "add_zone_note",
+    "add_zone_touch",
 ]

@@ -80,6 +80,12 @@ FILE_USAGE_INSTRUCTIONS = """You have access to a virtual file system to help yo
 4. **Read**: Once you are satisfied with the collected information, read the files and use them to answer the user's question directly.
 """
 
+ZONE_DB_GUARDRAILS = """When working with zone persistence tools, follow these rules:
+- Confirm with the human before calling `create_zone`; summarize the proposed zone (symbol, timeframe, prices, rationale) and ask for approval.
+- After creating a zone, immediately capture a detailed note using `add_zone_note` (include rationale, confluence, risk/invalidation, and any tags/source info).
+- If required details are missing (symbol, timeframe, price bounds), ask for them before attempting creation.
+"""
+
 SUMMARIZE_WEB_SEARCH = """You are creating a minimal summary for research steering - your goal is to help an agent know what information it has collected, NOT to preserve all details.
 
 <webpage_content>

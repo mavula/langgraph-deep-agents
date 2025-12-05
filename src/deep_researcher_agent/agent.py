@@ -21,6 +21,7 @@ from deep_researcher_agent.prompts import (
     SUPPLY_ZONE_INSTRUCTIONS,
     SUBAGENT_USAGE_INSTRUCTIONS,
     TODO_USAGE_INSTRUCTIONS,
+    ZONE_DB_GUARDRAILS,
 )
 from deep_researcher_agent.market_tools import MARKET_TOOLS
 from deep_researcher_agent.research_tools import (
@@ -141,6 +142,7 @@ INSTRUCTIONS = SECTION_SEPARATOR.join(
     [
         "# TODO MANAGEMENT\n" + TODO_USAGE_INSTRUCTIONS,
         "# FILE SYSTEM USAGE\n" + FILE_USAGE_INSTRUCTIONS,
+        "# ZONE DATABASE GUARDRAILS\n" + ZONE_DB_GUARDRAILS,
         "# SUB-AGENT DELEGATION\n" + SUBAGENT_INSTRUCTIONS,
     ]
 )

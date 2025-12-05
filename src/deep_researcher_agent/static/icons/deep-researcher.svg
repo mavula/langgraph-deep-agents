@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">Deep Researcher Icon</title>
+  <desc id="desc">Concentric lens rings around a bright core to represent focused research.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0b2a40"/>
+      <stop offset="100%" stop-color="#0e4c74"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#9be8ff"/>
+      <stop offset="100%" stop-color="#41c0ff"/>
+    </linearGradient>
+    <radialGradient id="core" cx="50%" cy="50%" r="55%">
+      <stop offset="0%" stop-color="#e9f7ff"/>
+      <stop offset="60%" stop-color="#9be8ff"/>
+      <stop offset="100%" stop-color="#0e4c74" stop-opacity="0.1"/>
+    </radialGradient>
+  </defs>
+  <rect width="128" height="128" rx="20" fill="url(#bg)"/>
+  <circle cx="64" cy="64" r="44" fill="none" stroke="url(#glow)" stroke-width="10" opacity="0.85"/>
+  <circle cx="64" cy="64" r="28" fill="url(#core)" stroke="#9be8ff" stroke-width="4" opacity="0.9"/>
+  <path d="M64 24c-3 6-5 14-5 24s2 18 5 24c3-6 5-14 5-24s-2-18-5-24Z" fill="#9be8ff" opacity="0.3"/>
+  <path d="M40 46c6-3 14-5 24-5s18 2 24 5c-6 3-14 5-24 5s-18-2-24-5Z" fill="#9be8ff" opacity="0.2"/>
+  <circle cx="64" cy="64" r="10" fill="#0b2a40" stroke="#e9f7ff" stroke-width="3"/>
+</svg>

@@ -372,6 +372,37 @@ class ZoneTouchRepository:
             return int(cursor.lastrowid)
 
 
+class ZoneRelationshipRepository:
+    """Repository for inserting zone relationships into ai_zone_relationships."""
+
+    def __init__(self, db: DatabaseClient, table: str = "ai_zone_relationships") -> None:
+        self._db = db
+        self._table = table
+
+    @classmethod
+    def from_env(cls, db: DatabaseClient) -> "ZoneRelationshipRepository":
+        return cls(db=db, table="ai_zone_relationships")
+
+    def insert_relationship(self, payload: dict[str, Any]) -> int:
+        columns = []
+        placeholders = []
+        values: list[Any] = []
+        for key, value in payload.items():
+            if value is None:
+                continue
+            columns.append(key)
+            placeholders.append("%s")
+            values.append(value)
+
+        if not columns:
+            raise ValueError("No values provided for ai_zone_relationships insert.")
+
+        sql = f"INSERT INTO {self._table} ({', '.join(columns)}) VALUES ({', '.join(placeholders)})"
+        with self._db.connection() as conn, conn.cursor() as cursor:
+            cursor.execute(sql, tuple(values))
+            return int(cursor.lastrowid)
+
+
 def _get_zone_repo() -> ZoneRepository:
     config = DatabaseConfig.from_env()
     db_client = DatabaseClient(config)
@@ -388,6 +419,12 @@ def _get_zone_touch_repo() -> ZoneTouchRepository:
     config = DatabaseConfig.from_env()
     db_client = DatabaseClient(config)
     return ZoneTouchRepository.from_env(db_client)
+
+
+def _get_zone_relationship_repo() -> ZoneRelationshipRepository:
+    config = DatabaseConfig.from_env()
+    db_client = DatabaseClient(config)
+    return ZoneRelationshipRepository.from_env(db_client)
 
 
 def _coerce_bool(value: Optional[bool | int | str]) -> Optional[int]:
@@ -641,8 +678,41 @@ def add_zone_touch(
     return {"touch_id": touch_id, "status": "created"}
 
 
+@tool
+def add_zone_relationship(
+    child_zone_id: Annotated[int, "Child ai_zones.id that references a parent zone."],
+    parent_zone_id: Annotated[int, "Parent ai_zones.id that the child depends on."],
+    relationship_type: Annotated[
+        Optional[str],
+        "Relationship enum: DIRECT_PARENT, CONFLUENCE, FLIP_REFERENCE. Defaults to DIRECT_PARENT.",
+    ] = "DIRECT_PARENT",
+    confidence_impact: Annotated[
+        Optional[str],
+        "Confidence impact enum: LOW, MEDIUM, HIGH. Defaults to HIGH.",
+    ] = "HIGH",
+) -> dict[str, Any]:
+    """Insert a parent/child relationship between zones into ai_zone_relationships."""
+
+    repo = _get_zone_relationship_repo()
+    payload = {
+        "child_zone_id": child_zone_id,
+        "parent_zone_id": parent_zone_id,
+        "relationship_type": relationship_type,
+        "confidence_impact": confidence_impact,
+    }
+    relationship_id = repo.insert_relationship(payload)
+    return {"relationship_id": relationship_id, "status": "created"}
+
+
 TRADING_TOOLS = [get_candles, get_ema, get_current_date, compare_dates]
-ZONE_TOOLS = [create_zone, update_zone, get_zones, add_zone_note, add_zone_touch]
+ZONE_TOOLS = [
+    create_zone,
+    update_zone,
+    get_zones,
+    add_zone_note,
+    add_zone_touch,
+    add_zone_relationship,
+]
 MARKET_TOOLS = [*TRADING_TOOLS, *ZONE_TOOLS]
 
 __all__ = [
@@ -659,6 +729,8 @@ __all__ = [
     "ZoneRepository",
     "ZoneNoteRepository",
     "ZoneTouchRepository",
+    "ZoneRelationshipRepository",
     "add_zone_note",
     "add_zone_touch",
+    "add_zone_relationship",
 ]

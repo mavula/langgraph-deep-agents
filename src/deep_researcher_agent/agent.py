@@ -22,6 +22,10 @@ from deep_researcher_agent.prompts import (
     SUBAGENT_USAGE_INSTRUCTIONS,
     TODO_USAGE_INSTRUCTIONS,
     ZONE_DB_GUARDRAILS,
+    DOUBLE_TOP_PATTERN_INSTRUCTIONS,
+    DOUBLE_BOTTOM_PATTERN_INSTRUCTIONS,
+    V_TOP_PATTERN_INSTRUCTIONS,
+    V_BOTTOM_PATTERN_INSTRUCTIONS,
 )
 from deep_researcher_agent.market_tools import MARKET_TOOLS
 from deep_researcher_agent.research_tools import (
@@ -103,10 +107,37 @@ data_prep_agent = {
     ],
 }
 
+double_top_agent = {
+    "name": "double-top-pattern-detector",
+    "description": "Detect double top patterns in price data.",
+    "prompt": DOUBLE_TOP_PATTERN_INSTRUCTIONS,
+    "tools": ["think_tool", "pyodide_sandbox"],
+}
+
+double_bottom_agent = {
+    "name": "double-bottom-pattern-detector",       
+    "description": "Detect double bottom patterns in price data.",
+    "prompt": DOUBLE_BOTTOM_PATTERN_INSTRUCTIONS,
+    "tools": ["think_tool", "pyodide_sandbox"],
+}
+
+v_top_agent = {
+    "name": "v-top-pattern-detector",       
+    "description": "Detect V top patterns in price data.",
+    "prompt": V_TOP_PATTERN_INSTRUCTIONS,
+    "tools": ["think_tool", "pyodide_sandbox"],
+}
+v_bottom_agent = {
+    "name": "v-bottom-pattern-detector",       
+    "description": "Detect V bottom patterns in price data.",
+    "prompt": V_BOTTOM_PATTERN_INSTRUCTIONS,            
+    "tools": ["think_tool", "pyodide_sandbox"],
+}
+
 # Task delegation tool for spawning isolated sub-agent contexts.
 task_tool = _create_task_tool(
     sub_agent_tools,
-    [data_prep_agent, demand_zone_agent, supply_zone_agent],
+    [data_prep_agent, demand_zone_agent, supply_zone_agent, double_top_agent, double_bottom_agent, v_top_agent, v_bottom_agent],
     model,
     DeepAgentState,
 )

@@ -685,6 +685,25 @@ class ReportNoteRepository:
             cursor.execute(" ".join(sql_parts), tuple(params))
             return list(cursor.fetchall())
 
+    def insert_note(self, payload: dict[str, Any]) -> int:
+        columns = []
+        placeholders = []
+        values: list[Any] = []
+        for key, value in payload.items():
+            if value is None:
+                continue
+            columns.append(key)
+            placeholders.append("%s")
+            values.append(value)
+
+        if not columns:
+            raise ValueError("No values provided for ai_report_notes insert.")
+
+        sql = f"INSERT INTO {self._table} ({', '.join(columns)}) VALUES ({', '.join(placeholders)})"
+        with self._db.connection() as conn, conn.cursor() as cursor:
+            cursor.execute(sql, tuple(values))
+            return int(cursor.lastrowid)
+
     def update_note(self, note_id: int, updates: dict[str, Any]) -> int:
         sets = []
         values: list[Any] = []
@@ -983,6 +1002,38 @@ def _format_report_note_row(row: dict[str, Any]) -> ReportNoteRow:
         "created_at": _format_datetime_value(row.get("created_at")),
         "updated_at": _format_datetime_value(row.get("updated_at")),
     }
+
+
+@tool
+def add_report_note(
+    symbol: Annotated[str, "Symbol/ticker for the report note (e.g., BANKNIFTY1!)."],
+    report_date: Annotated[str, "Report date in YYYY-MM-DD."],
+    notes: Annotated[str, "Primary narrative/notes content to store."],
+    embedding: Annotated[
+        Optional[Any],
+        "Optional embedding JSON (list/array) or JSON string.",
+    ] = None,
+    source: Annotated[Optional[str], "Optional source label (e.g., agent name or feed)."] = None,
+    tags: Annotated[
+        Optional[Any],
+        "Optional tags JSON (list or object) or JSON string.",
+    ] = None,
+    confidence_score: Annotated[Optional[float], "Optional confidence score (0.00-9.99)."] = None,
+) -> dict[str, Any]:
+    """Insert a report note row into ai_report_notes."""
+
+    repo = _get_report_note_repo()
+    payload = {
+        "symbol": symbol,
+        "report_date": report_date,
+        "notes": notes,
+        "embedding": _serialize_json_column(embedding),
+        "source": source,
+        "tags": _serialize_json_column(tags),
+        "confidence_score": confidence_score,
+    }
+    note_id = repo.insert_note(payload)
+    return {"note_id": note_id, "status": "created"}
 
 
 @tool
@@ -1629,6 +1680,9 @@ ZONE_TOOLS = [
     create_zone,
     update_zone,
     get_zones,
+    add_report_note,
+    get_report_notes,
+    update_report_note,
     add_zone_note,
     add_zone_touch,
     add_zone_touch_price_action,
@@ -1654,6 +1708,9 @@ __all__ = [
     "create_zone",
     "update_zone",
     "get_zones",
+    "add_report_note",
+    "get_report_notes",
+    "update_report_note",
     "ZoneRepository",
     "ZoneNoteRepository",
     "ZoneTouchRepository",

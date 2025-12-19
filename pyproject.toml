@@ -21,6 +21,8 @@ dependencies = [
     "markdownify>=1.2.0",
     "langchain-google-genai>=2.1.12",
     "pymysql>=1.1.1",
+    "numpy>=1.26.0",
+    "pandas>=2.1.0",
 ]
 
 

@@ -26,6 +26,7 @@ from deep_researcher_agent.prompts import (
     DOUBLE_BOTTOM_PATTERN_INSTRUCTIONS,
     V_TOP_PATTERN_INSTRUCTIONS,
     V_BOTTOM_PATTERN_INSTRUCTIONS,
+    REPORT_AGENT_INSTRUCTIONS
 )
 from deep_researcher_agent.market_tools import MARKET_TOOLS
 from deep_researcher_agent.research_tools import (
@@ -33,7 +34,7 @@ from deep_researcher_agent.research_tools import (
     get_today_str_tool,
     think_tool,
 )
-from deep_researcher_agent.sandbox_tool import pyodide_sandbox
+from deep_researcher_agent.sandbox_tool import pyodide_sandbox, double_top_peaks
 from deep_researcher_agent.state import DeepAgentState
 from deep_researcher_agent.task_tool import _create_task_tool
 from deep_researcher_agent.todo_tools import write_todos, read_todos
@@ -62,7 +63,7 @@ max_concurrent_validation_units = 3
 max_validator_iterations = 3
 
 # Tools available to the validation and data prep sub-agents.
-sub_agent_tools = [think_tool, get_today_str_tool, pyodide_sandbox, *MARKET_TOOLS]
+sub_agent_tools = [think_tool, get_today_str_tool, pyodide_sandbox, double_top_peaks, *MARKET_TOOLS]
 
 # Core tools available to the primary agent.
 built_in_tools = [
@@ -73,6 +74,7 @@ built_in_tools = [
     read_todos,
     get_today_str_tool,
     pyodide_sandbox,
+    double_top_peaks,
     *MARKET_TOOLS,
 ]
 
@@ -111,7 +113,9 @@ double_top_agent = {
     "name": "double-top-pattern-detector",
     "description": "Detect double top patterns in price data.",
     "prompt": DOUBLE_TOP_PATTERN_INSTRUCTIONS,
-    "tools": ["think_tool", "pyodide_sandbox"],
+    "tools": ["think_tool", "pyodide_sandbox", "double_top_peaks"],
+
+
 }
 
 double_bottom_agent = {
@@ -133,11 +137,27 @@ v_bottom_agent = {
     "prompt": V_BOTTOM_PATTERN_INSTRUCTIONS,            
     "tools": ["think_tool", "pyodide_sandbox"],
 }
+report_agent = {
+    "name": "reporter",
+    "description": (
+        "Generates structured intraday market reports by analyzing "
+        "Cumulative Volume Delta (CVD), Point of Control (POC) migration, "
+        "and price action across opening, mid-day, and closing sessions. "
+        "The agent consumes footprint-level data (OHLC, volume delta, "
+        "CVD open/high/low/close, and volume profile metrics) and produces "
+        "session-wise comparisons, directional classifications "
+        "(acceptance, liquidation, short covering, balance), and a concise "
+        "daily narrative highlighting buyer/seller dominance, value "
+        "acceptance or rejection, and key divergences between price and order flow."
+    ),
+    "prompt": REPORT_AGENT_INSTRUCTIONS,
+    "tools": ["think_tool", "pyodide_sandbox"],
+}
 
 # Task delegation tool for spawning isolated sub-agent contexts.
 task_tool = _create_task_tool(
     sub_agent_tools,
-    [data_prep_agent, demand_zone_agent, supply_zone_agent, double_top_agent, double_bottom_agent, v_top_agent, v_bottom_agent],
+    [data_prep_agent, demand_zone_agent, supply_zone_agent, double_top_agent, double_bottom_agent, v_top_agent, v_bottom_agent, report_agent],
     model,
     DeepAgentState,
 )

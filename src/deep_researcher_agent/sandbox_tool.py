@@ -7,6 +7,7 @@ import io
 import json
 import math
 import statistics
+import collections
 from typing import Any, Dict, Optional
 
 import numpy as np
@@ -32,10 +33,26 @@ def _basic_sort_by_key(items: Any, key: str) -> Any:
     return sorted_items
 
 
+_SAFE_MODULES = {
+    "math": math,
+    "statistics": statistics,
+    "json": json,
+    "collections": collections,
+}
+
+
+def _safe_import(name: str, globals: Any = None, locals: Any = None, fromlist: Any = (), level: int = 0) -> Any:
+    """Whitelist-limited import for sandboxed snippets."""
+
+    if name in _SAFE_MODULES:
+        return _SAFE_MODULES[name]
+    raise ImportError(f"Import of '{name}' is not allowed in sandbox.")
+
+
 @tool(
     "pyodide_sandbox",
     description=(
-        "Execute a small Python snippet with limited builtins/math/statistics plus json; imports are not available. "
+        "Execute a small Python snippet with limited builtins and a few whitelisted imports (math, statistics, json, collections). "
         "Use only basic arithmetic/loops. Data is passed in via the `data` variable. "
         "Assign to `result` to return a value. Helpers: `basic_sort_by_key(items, key)` for manual sorting and `json` for simple parsing/serialization."
     ),
@@ -50,6 +67,9 @@ def pyodide_sandbox(code: str, data: Any | None = None) -> Dict[str, Any]:
     - To return a value, assign to `result` in the snippet.
     """
 
+    if data is None:
+        return {"stdout": None, "result": None, "error": "No data provided to sandbox (data is None)."}
+
     allowed_builtins = {
         "abs": abs,
         "min": min,
@@ -60,6 +80,8 @@ def pyodide_sandbox(code: str, data: Any | None = None) -> Dict[str, Any]:
         "range": range,
         "enumerate": enumerate,
         "zip": zip,
+        "sorted": sorted,
+        "__import__": _safe_import,
     }
 
     safe_globals = {
@@ -69,6 +91,8 @@ def pyodide_sandbox(code: str, data: Any | None = None) -> Dict[str, Any]:
         "data": data,
         "basic_sort_by_key": _basic_sort_by_key,
         "json": json,
+        "collections": collections,
+        "defaultdict": collections.defaultdict,
     }
     safe_locals: Dict[str, Any] = {}
 

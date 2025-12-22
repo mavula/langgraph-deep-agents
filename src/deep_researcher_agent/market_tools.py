@@ -504,6 +504,24 @@ class DoubleTopPatternRepository:
             values.append(value)
 
         if not sets:
+            raise ValueError("No updates provided for ai_ema_20_patterns.")
+
+        values.append(pattern_id)
+        sql = f"UPDATE {self._table} SET {', '.join(sets)} WHERE id = %s"
+        with self._db.connection() as conn, conn.cursor() as cursor:
+            cursor.execute(sql, tuple(values))
+            return cursor.rowcount
+
+    def update_pattern(self, pattern_id: int, updates: dict[str, Any]) -> int:
+        sets = []
+        values: list[Any] = []
+        for key, value in updates.items():
+            if value is None:
+                continue
+            sets.append(f"{key} = %s")
+            values.append(value)
+
+        if not sets:
             raise ValueError("No updates provided for ai_double_top_patterns.")
 
         values.append(pattern_id)
@@ -609,6 +627,37 @@ class VTopPatternRepository:
         with self._db.connection() as conn, conn.cursor() as cursor:
             cursor.execute(sql, tuple(values))
             return cursor.rowcount
+
+
+class Ema20PatternRepository:
+    """Repository for inserting EMA-20 patterns into ai_ema_20_patterns."""
+
+    def __init__(self, db: DatabaseClient, table: str = "ai_ema_20_patterns") -> None:
+        self._db = db
+        self._table = table
+
+    @classmethod
+    def from_env(cls, db: DatabaseClient) -> "Ema20PatternRepository":
+        return cls(db=db, table="ai_ema_20_patterns")
+
+    def insert_pattern(self, payload: dict[str, Any]) -> int:
+        columns = []
+        placeholders = []
+        values: list[Any] = []
+        for key, value in payload.items():
+            if value is None:
+                continue
+            columns.append(key)
+            placeholders.append("%s")
+            values.append(value)
+
+        if not columns:
+            raise ValueError("No values provided for ai_ema_20_patterns insert.")
+
+        sql = f"INSERT INTO {self._table} ({', '.join(columns)}) VALUES ({', '.join(placeholders)})"
+        with self._db.connection() as conn, conn.cursor() as cursor:
+            cursor.execute(sql, tuple(values))
+            return int(cursor.lastrowid)
 
 
 class ZoneRelationshipRepository:
@@ -769,6 +818,12 @@ def _get_v_top_pattern_repo() -> VTopPatternRepository:
     config = DatabaseConfig.from_env()
     db_client = DatabaseClient(config)
     return VTopPatternRepository.from_env(db_client)
+
+
+def _get_ema20_pattern_repo() -> Ema20PatternRepository:
+    config = DatabaseConfig.from_env()
+    db_client = DatabaseClient(config)
+    return Ema20PatternRepository.from_env(db_client)
 
 
 def _get_zone_relationship_repo() -> ZoneRelationshipRepository:
@@ -1192,7 +1247,7 @@ def add_zone_touch_price_action(
     zone_touch_id: Annotated[int, "Foreign key to ai_zone_touches.id for the referenced touch."],
     pattern_type: Annotated[
         str,
-        "Pattern enum: DOUBLE_TOP, DOUBLE_BOTTOM, V_TOP, V_BOTTOM, OTHER. Defaults to OTHER.",
+        "Pattern enum: DOUBLE_TOP, DOUBLE_BOTTOM, V_TOP, V_BOTTOM, 20_EMA, OTHER. Defaults to OTHER.",
     ] = "OTHER",
     zone_id: Annotated[Optional[int], "Optional ai_zones.id if available."] = None,
     double_top_id: Annotated[
@@ -1205,6 +1260,7 @@ def add_zone_touch_price_action(
     ] = None,
     v_top_id: Annotated[Optional[int], "Optional reference to a V top pattern id."] = None,
     v_bottom_id: Annotated[Optional[int], "Optional reference to a V bottom pattern id."] = None,
+    ema_20_id: Annotated[Optional[int], "Optional reference to a 20 EMA pattern id."] = None,
     max_favorable_rr: Annotated[
         Optional[float],
         "Optional max favorable risk-reward ratio observed for the touch.",
@@ -1223,6 +1279,7 @@ def add_zone_touch_price_action(
         "double_bottom_id": double_bottom_id,
         "v_top_id": v_top_id,
         "v_bottom_id": v_bottom_id,
+        "ema_20_id": ema_20_id,
         "max_favorable_rr": max_favorable_rr,
     }
     action_id = repo.insert_action(payload)
@@ -1235,7 +1292,7 @@ def update_zone_touch_price_action(
     zone_id: Annotated[Optional[int], "Optional ai_zones.id if available."] = None,
     pattern_type: Annotated[
         Optional[str],
-        "Pattern enum: DOUBLE_TOP, DOUBLE_BOTTOM, V_TOP, V_BOTTOM, OTHER.",
+        "Pattern enum: DOUBLE_TOP, DOUBLE_BOTTOM, V_TOP, V_BOTTOM, 20_EMA, OTHER.",
     ] = None,
     double_top_id: Annotated[
         Optional[int],
@@ -1247,6 +1304,7 @@ def update_zone_touch_price_action(
     ] = None,
     v_top_id: Annotated[Optional[int], "Optional reference to a V top pattern id."] = None,
     v_bottom_id: Annotated[Optional[int], "Optional reference to a V bottom pattern id."] = None,
+    ema_20_id: Annotated[Optional[int], "Optional reference to a 20 EMA pattern id."] = None,
     max_favorable_rr: Annotated[
         Optional[float],
         "Optional max favorable risk-reward ratio observed for the touch.",
@@ -1262,6 +1320,7 @@ def update_zone_touch_price_action(
         "double_bottom_id": double_bottom_id,
         "v_top_id": v_top_id,
         "v_bottom_id": v_bottom_id,
+        "ema_20_id": ema_20_id,
         "max_favorable_rr": max_favorable_rr,
     }
     rows = repo.update_action(touch_price_action_id, updates)
@@ -1650,6 +1709,93 @@ def update_v_top_pattern(
 
 
 @tool
+def add_ema_20_pattern(
+    symbol: Annotated[str, "Symbol identifier that matches the pattern."],
+    timeframe: Annotated[str, "Timeframe enum: 1m,3m,5m,10m,15m,30m,1H."],
+    pattern_timestamp: Annotated[str, "Timestamp of the EMA interaction (YYYY-MM-DD HH:MM:SS)."],
+    price_position: Annotated[str, "Price position relative to EMA: ABOVE, BELOW, TOUCHING."],
+    ema20_slope: Annotated[str, "EMA20 slope at the interaction: RISING, FALLING, FLAT."],
+    ema_pattern_type: Annotated[
+        str,
+        "Pattern enum: EMA_REJECTION, EMA_SUPPORT, EMA_RESISTANCE, EMA_BREAK_AND_RETEST, EMA_MEAN_REVERSION, EMA_CHOP, EMA_TRANSITION, OTHER.",
+    ] = "OTHER",
+    pattern_start_ts: Annotated[Optional[str], "Optional pattern start timestamp (YYYY-MM-DD HH:MM:SS)."] = None,
+    pattern_end_ts: Annotated[Optional[str], "Optional pattern end timestamp (YYYY-MM-DD HH:MM:SS)."] = None,
+    rejection_side: Annotated[str, "Rejection side enum: NONE, UP, DOWN. Defaults to NONE."] = "NONE",
+    distance_from_ema_abs: Annotated[Optional[float], "Absolute distance from price to EMA."] = None,
+    distance_from_ema_pct: Annotated[Optional[float], "Percentage distance from price to EMA."] = None,
+    cvd_bias: Annotated[str, "CVD bias enum: BULLISH, BEARISH, NEUTRAL, UNKNOWN. Defaults to UNKNOWN."] = "UNKNOWN",
+    imbalance_side: Annotated[str, "Imbalance enum: NONE, BUY, SELL. Defaults to NONE."] = "NONE",
+    imbalance_value: Annotated[Optional[float], "Order flow imbalance metric."] = None,
+    notes: Annotated[Optional[str], "Optional notes for the pattern."] = None,
+) -> dict[str, Any]:
+    """Insert a 20 EMA pattern row into ai_ema_20_patterns."""
+
+    repo = _get_ema20_pattern_repo()
+    payload = {
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "ema_pattern_type": ema_pattern_type,
+        "pattern_timestamp": pattern_timestamp,
+        "pattern_start_ts": pattern_start_ts,
+        "pattern_end_ts": pattern_end_ts,
+        "price_position": price_position,
+        "rejection_side": rejection_side,
+        "ema20_slope": ema20_slope,
+        "distance_from_ema_abs": distance_from_ema_abs,
+        "distance_from_ema_pct": distance_from_ema_pct,
+        "cvd_bias": cvd_bias,
+        "imbalance_side": imbalance_side,
+        "imbalance_value": imbalance_value,
+        "notes": notes,
+    }
+    pattern_id = repo.insert_pattern(payload)
+    return {"ema_20_pattern_id": pattern_id, "status": "created"}
+
+
+@tool
+def update_ema_20_pattern(
+    ema_20_pattern_id: Annotated[int, "Existing ai_ema_20_patterns.id to update."],
+    pattern_timestamp: Annotated[Optional[str], "Optional EMA interaction timestamp (YYYY-MM-DD HH:MM:SS)."] = None,
+    pattern_start_ts: Annotated[Optional[str], "Optional pattern start timestamp (YYYY-MM-DD HH:MM:SS)."] = None,
+    pattern_end_ts: Annotated[Optional[str], "Optional pattern end timestamp (YYYY-MM-DD HH:MM:SS)."] = None,
+    price_position: Annotated[Optional[str], "Price position relative to EMA: ABOVE, BELOW, TOUCHING."] = None,
+    rejection_side: Annotated[Optional[str], "Rejection side enum: NONE, UP, DOWN."] = None,
+    ema20_slope: Annotated[Optional[str], "EMA20 slope at the interaction: RISING, FALLING, FLAT."] = None,
+    ema_pattern_type: Annotated[
+        Optional[str],
+        "Pattern enum: EMA_REJECTION, EMA_SUPPORT, EMA_RESISTANCE, EMA_BREAK_AND_RETEST, EMA_MEAN_REVERSION, EMA_CHOP, EMA_TRANSITION, OTHER.",
+    ] = None,
+    distance_from_ema_abs: Annotated[Optional[float], "Absolute distance from price to EMA."] = None,
+    distance_from_ema_pct: Annotated[Optional[float], "Percentage distance from price to EMA."] = None,
+    cvd_bias: Annotated[Optional[str], "CVD bias enum: BULLISH, BEARISH, NEUTRAL, UNKNOWN."] = None,
+    imbalance_side: Annotated[Optional[str], "Imbalance enum: NONE, BUY, SELL."] = None,
+    imbalance_value: Annotated[Optional[float], "Order flow imbalance metric."] = None,
+    notes: Annotated[Optional[str], "Optional notes for the pattern."] = None,
+) -> dict[str, Any]:
+    """Update selected fields on an existing ai_ema_20_patterns row."""
+
+    repo = _get_ema20_pattern_repo()
+    updates = {
+        "pattern_timestamp": pattern_timestamp,
+        "pattern_start_ts": pattern_start_ts,
+        "pattern_end_ts": pattern_end_ts,
+        "price_position": price_position,
+        "rejection_side": rejection_side,
+        "ema20_slope": ema20_slope,
+        "ema_pattern_type": ema_pattern_type,
+        "distance_from_ema_abs": distance_from_ema_abs,
+        "distance_from_ema_pct": distance_from_ema_pct,
+        "cvd_bias": cvd_bias,
+        "imbalance_side": imbalance_side,
+        "imbalance_value": imbalance_value,
+        "notes": notes,
+    }
+    rows = repo.update_pattern(ema_20_pattern_id, updates)
+    return {"ema_20_pattern_id": ema_20_pattern_id, "rows_updated": rows}
+
+
+@tool
 def add_zone_relationship(
     child_zone_id: Annotated[int, "Child ai_zones.id that references a parent zone."],
     parent_zone_id: Annotated[int, "Parent ai_zones.id that the child depends on."],
@@ -1693,6 +1839,8 @@ ZONE_TOOLS = [
     update_double_bottom_pattern,
     add_v_top_pattern,
     update_v_top_pattern,
+    add_ema_20_pattern,
+    update_ema_20_pattern,
     add_zone_relationship,
 ]
 MARKET_TOOLS = [*TRADING_TOOLS, *ZONE_TOOLS]
@@ -1718,6 +1866,7 @@ __all__ = [
     "DoubleTopPatternRepository",
     "DoubleBottomPatternRepository",
     "VTopPatternRepository",
+    "Ema20PatternRepository",
     "ZoneRelationshipRepository",
     "add_zone_note",
     "add_zone_touch",
@@ -1729,5 +1878,7 @@ __all__ = [
     "update_double_bottom_pattern",
     "add_v_top_pattern",
     "update_v_top_pattern",
+    "add_ema_20_pattern",
+    "update_ema_20_pattern",
     "add_zone_relationship",
 ]

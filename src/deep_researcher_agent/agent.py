@@ -26,6 +26,7 @@ from deep_researcher_agent.prompts import (
     DOUBLE_BOTTOM_PATTERN_INSTRUCTIONS,
     V_TOP_PATTERN_INSTRUCTIONS,
     V_BOTTOM_PATTERN_INSTRUCTIONS,
+    EMA20_PATTERN_INSTRUCTIONS,
     REPORT_AGENT_INSTRUCTIONS
 )
 from deep_researcher_agent.market_tools import MARKET_TOOLS
@@ -125,6 +126,13 @@ double_bottom_agent = {
     "tools": ["think_tool", "pyodide_sandbox"],
 }
 
+ema_agent = {
+    "name": "ema-20-pattern-detector",       
+    "description": "Detect EMA 20 bounce and rejection patterns in price data.",
+    "prompt": EMA20_PATTERN_INSTRUCTIONS,            
+    "tools": ["think_tool", "pyodide_sandbox"],
+}
+
 v_top_agent = {
     "name": "v-top-pattern-detector",       
     "description": "Detect V top patterns in price data.",
@@ -157,7 +165,7 @@ report_agent = {
 # Task delegation tool for spawning isolated sub-agent contexts.
 task_tool = _create_task_tool(
     sub_agent_tools,
-    [data_prep_agent, demand_zone_agent, supply_zone_agent, double_top_agent, double_bottom_agent, v_top_agent, v_bottom_agent, report_agent],
+    [data_prep_agent, demand_zone_agent, supply_zone_agent, double_top_agent, double_bottom_agent, v_top_agent, v_bottom_agent, ema_agent, report_agent],
     model,
     DeepAgentState,
 )

@@ -870,7 +870,14 @@ def create_zone(
     poc_initial_price: Annotated[Optional[float], "Initial POC price."] = None,
     poc_migrated_price: Annotated[Optional[float], "Migrated POC price."] = None,
     poc_migration_confirmed: Annotated[Optional[bool], "Whether POC migration confirmed."] = None,
-    cvd_confirmation_type: Annotated[Optional[str], "CVD confirmation enum: NONE, RISING_AWAY, DIVERGENCE_RETEST."] = "NONE",
+    cvd_confirmation_type: Annotated[
+        Optional[str],
+        "CVD confirmation enum: NONE, RISING_AWAY, DIVERGENCE_RETEST, ABSORPTION.",
+    ] = "NONE",
+    cvd_absorption_side: Annotated[
+        Optional[str],
+        "CVD absorption side enum: NONE, BUY, SELL.",
+    ] = "NONE",
     cvd_value_at_origin: Annotated[Optional[int], "CVD value at origin."] = None,
     cvd_value_at_exit: Annotated[Optional[int], "CVD value at exit."] = None,
     cvd_comment: Annotated[Optional[str], "CVD comment."] = None,
@@ -903,6 +910,7 @@ def create_zone(
         "poc_migrated_price": poc_migrated_price,
         "poc_migration_confirmed": _coerce_bool(poc_migration_confirmed),
         "cvd_confirmation_type": cvd_confirmation_type,
+        "cvd_absorption_side": cvd_absorption_side,
         "cvd_value_at_origin": cvd_value_at_origin,
         "cvd_value_at_exit": cvd_value_at_exit,
         "cvd_comment": cvd_comment,
@@ -921,6 +929,11 @@ def update_zone(
     notes: Annotated[Optional[str], "Optional notes update."] = None,
     poc_migrated_price: Annotated[Optional[float], "Optional migrated POC price update."] = None,
     poc_migration_confirmed: Annotated[Optional[bool], "Optional POC migration confirmation flag."] = None,
+    cvd_confirmation_type: Annotated[
+        Optional[str],
+        "Optional CVD confirmation enum: NONE, RISING_AWAY, DIVERGENCE_RETEST, ABSORPTION.",
+    ] = None,
+    cvd_absorption_side: Annotated[Optional[str], "Optional CVD absorption side: NONE, BUY, SELL."] = None,
     cvd_comment: Annotated[Optional[str], "Optional CVD comment update."] = None,
 ) -> dict:
     """Update selected fields on an existing ai_zones row."""
@@ -932,6 +945,8 @@ def update_zone(
         "notes": notes,
         "poc_migrated_price": poc_migrated_price,
         "poc_migration_confirmed": _coerce_bool(poc_migration_confirmed),
+        "cvd_confirmation_type": cvd_confirmation_type,
+        "cvd_absorption_side": cvd_absorption_side,
         "cvd_comment": cvd_comment,
     }
     rows = repo.update_zone(zone_id, updates)

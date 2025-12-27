@@ -115,8 +115,6 @@ double_top_agent = {
     "description": "Detect double top patterns in price data.",
     "prompt": DOUBLE_TOP_PATTERN_INSTRUCTIONS,
     "tools": ["think_tool", "pyodide_sandbox", "double_top_peaks"],
-
-
 }
 
 double_bottom_agent = {

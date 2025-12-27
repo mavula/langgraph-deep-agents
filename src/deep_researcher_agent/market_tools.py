@@ -504,24 +504,6 @@ class DoubleTopPatternRepository:
             values.append(value)
 
         if not sets:
-            raise ValueError("No updates provided for ai_ema_20_patterns.")
-
-        values.append(pattern_id)
-        sql = f"UPDATE {self._table} SET {', '.join(sets)} WHERE id = %s"
-        with self._db.connection() as conn, conn.cursor() as cursor:
-            cursor.execute(sql, tuple(values))
-            return cursor.rowcount
-
-    def update_pattern(self, pattern_id: int, updates: dict[str, Any]) -> int:
-        sets = []
-        values: list[Any] = []
-        for key, value in updates.items():
-            if value is None:
-                continue
-            sets.append(f"{key} = %s")
-            values.append(value)
-
-        if not sets:
             raise ValueError("No updates provided for ai_double_top_patterns.")
 
         values.append(pattern_id)
@@ -529,6 +511,174 @@ class DoubleTopPatternRepository:
         with self._db.connection() as conn, conn.cursor() as cursor:
             cursor.execute(sql, tuple(values))
             return cursor.rowcount
+
+    def fetch_patterns(
+        self,
+        pattern_id: Optional[int] = None,
+        symbol: Optional[str] = None,
+        timeframe: Optional[str] = None,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        sql_parts = [
+            "SELECT",
+            "vtp.*,",
+            "tpa.id AS touch_price_action_id,",
+            "tpa.zone_id AS touch_price_action_zone_id,",
+            "tpa.zone_touch_id AS touch_price_action_zone_touch_id,",
+            "tpa.max_favorable_rr AS touch_price_action_max_favorable_rr",
+            f"FROM {self._table} AS vtp",
+            "LEFT JOIN ai_zone_touch_price_actions AS tpa",
+            "  ON tpa.pattern_type = 'V_TOP'",
+            "  AND tpa.v_top_id = vtp.id",
+            "WHERE 1=1",
+        ]
+        params: list[Any] = []
+
+        if pattern_id is not None:
+            sql_parts.append("AND vtp.id = %s")
+            params.append(pattern_id)
+        if symbol is not None:
+            sql_parts.append("AND vtp.symbol = %s")
+            params.append(symbol)
+        if timeframe is not None:
+            sql_parts.append("AND vtp.timeframe = %s")
+            params.append(timeframe)
+
+        sql_parts.append("ORDER BY vtp.id DESC")
+        sql_parts.append("LIMIT %s")
+        params.append(max(1, min(limit, 500)))
+
+        with self._db.connection() as conn, conn.cursor() as cursor:
+            cursor.execute(" ".join(sql_parts), tuple(params))
+            return list(cursor.fetchall())
+
+    def get_patterns(
+        self,
+        pattern_id: Optional[int] = None,
+        symbol: Optional[str] = None,
+        timeframe: Optional[str] = None,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        """Alias for fetch_patterns."""
+
+        return self.fetch_patterns(
+            pattern_id=pattern_id,
+            symbol=symbol,
+            timeframe=timeframe,
+            limit=limit,
+        )
+
+    def fetch_patterns(
+        self,
+        pattern_id: Optional[int] = None,
+        symbol: Optional[str] = None,
+        timeframe: Optional[str] = None,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        sql_parts = [
+            "SELECT",
+            "e20.*,",
+            "tpa.id AS touch_price_action_id,",
+            "tpa.zone_id AS touch_price_action_zone_id,",
+            "tpa.zone_touch_id AS touch_price_action_zone_touch_id,",
+            "tpa.max_favorable_rr AS touch_price_action_max_favorable_rr",
+            f"FROM {self._table} AS e20",
+            "LEFT JOIN ai_zone_touch_price_actions AS tpa",
+            "  ON tpa.pattern_type = '20_EMA'",
+            "  AND tpa.ema_20_id = e20.id",
+            "WHERE 1=1",
+        ]
+        params: list[Any] = []
+
+        if pattern_id is not None:
+            sql_parts.append("AND e20.id = %s")
+            params.append(pattern_id)
+        if symbol is not None:
+            sql_parts.append("AND e20.symbol = %s")
+            params.append(symbol)
+        if timeframe is not None:
+            sql_parts.append("AND e20.timeframe = %s")
+            params.append(timeframe)
+
+        sql_parts.append("ORDER BY e20.id DESC")
+        sql_parts.append("LIMIT %s")
+        params.append(max(1, min(limit, 500)))
+
+        with self._db.connection() as conn, conn.cursor() as cursor:
+            cursor.execute(" ".join(sql_parts), tuple(params))
+            return list(cursor.fetchall())
+
+    def get_patterns(
+        self,
+        pattern_id: Optional[int] = None,
+        symbol: Optional[str] = None,
+        timeframe: Optional[str] = None,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        """Alias for fetch_patterns."""
+
+        return self.fetch_patterns(
+            pattern_id=pattern_id,
+            symbol=symbol,
+            timeframe=timeframe,
+            limit=limit,
+        )
+
+    def fetch_patterns(
+        self,
+        pattern_id: Optional[int] = None,
+        symbol: Optional[str] = None,
+        timeframe: Optional[str] = None,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        sql_parts = [
+            "SELECT",
+            "dbp.*,",
+            "tpa.id AS touch_price_action_id,",
+            "tpa.zone_id AS touch_price_action_zone_id,",
+            "tpa.zone_touch_id AS touch_price_action_zone_touch_id,",
+            "tpa.max_favorable_rr AS touch_price_action_max_favorable_rr",
+            f"FROM {self._table} AS dbp",
+            "LEFT JOIN ai_zone_touch_price_actions AS tpa",
+            "  ON tpa.pattern_type = 'DOUBLE_BOTTOM'",
+            "  AND tpa.double_bottom_id = dbp.id",
+            "WHERE 1=1",
+        ]
+        params: list[Any] = []
+
+        if pattern_id is not None:
+            sql_parts.append("AND dbp.id = %s")
+            params.append(pattern_id)
+        if symbol is not None:
+            sql_parts.append("AND dbp.symbol = %s")
+            params.append(symbol)
+        if timeframe is not None:
+            sql_parts.append("AND dbp.timeframe = %s")
+            params.append(timeframe)
+
+        sql_parts.append("ORDER BY dbp.id DESC")
+        sql_parts.append("LIMIT %s")
+        params.append(max(1, min(limit, 500)))
+
+        with self._db.connection() as conn, conn.cursor() as cursor:
+            cursor.execute(" ".join(sql_parts), tuple(params))
+            return list(cursor.fetchall())
+
+    def get_patterns(
+        self,
+        pattern_id: Optional[int] = None,
+        symbol: Optional[str] = None,
+        timeframe: Optional[str] = None,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        """Alias for fetch_patterns."""
+
+        return self.fetch_patterns(
+            pattern_id=pattern_id,
+            symbol=symbol,
+            timeframe=timeframe,
+            limit=limit,
+        )
 
 
 class DoubleBottomPatternRepository:
@@ -578,6 +728,62 @@ class DoubleBottomPatternRepository:
         with self._db.connection() as conn, conn.cursor() as cursor:
             cursor.execute(sql, tuple(values))
             return cursor.rowcount
+
+    def fetch_patterns(
+        self,
+        pattern_id: Optional[int] = None,
+        symbol: Optional[str] = None,
+        timeframe: Optional[str] = None,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        sql_parts = [
+            "SELECT",
+            "dtp.*,",
+            "tpa.id AS touch_price_action_id,",
+            "tpa.zone_id AS touch_price_action_zone_id,",
+            "tpa.zone_touch_id AS touch_price_action_zone_touch_id,",
+            "tpa.max_favorable_rr AS touch_price_action_max_favorable_rr",
+            f"FROM {self._table} AS dtp",
+            "LEFT JOIN ai_zone_touch_price_actions AS tpa",
+            "  ON tpa.pattern_type = 'DOUBLE_TOP'",
+            "  AND tpa.double_top_id = dtp.id",
+            "WHERE 1=1",
+        ]
+        params: list[Any] = []
+
+        if pattern_id is not None:
+            sql_parts.append("AND dtp.id = %s")
+            params.append(pattern_id)
+        if symbol is not None:
+            sql_parts.append("AND dtp.symbol = %s")
+            params.append(symbol)
+        if timeframe is not None:
+            sql_parts.append("AND dtp.timeframe = %s")
+            params.append(timeframe)
+
+        sql_parts.append("ORDER BY dtp.id DESC")
+        sql_parts.append("LIMIT %s")
+        params.append(max(1, min(limit, 500)))
+
+        with self._db.connection() as conn, conn.cursor() as cursor:
+            cursor.execute(" ".join(sql_parts), tuple(params))
+            return list(cursor.fetchall())
+
+    def get_patterns(
+        self,
+        pattern_id: Optional[int] = None,
+        symbol: Optional[str] = None,
+        timeframe: Optional[str] = None,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        """Alias for fetch_patterns."""
+
+        return self.fetch_patterns(
+            pattern_id=pattern_id,
+            symbol=symbol,
+            timeframe=timeframe,
+            limit=limit,
+        )
 
 
 class VTopPatternRepository:
@@ -658,6 +864,64 @@ class Ema20PatternRepository:
         with self._db.connection() as conn, conn.cursor() as cursor:
             cursor.execute(sql, tuple(values))
             return int(cursor.lastrowid)
+
+    def update_pattern(self, pattern_id: int, updates: dict[str, Any]) -> int:
+        sets = []
+        values: list[Any] = []
+        for key, value in updates.items():
+            if value is None:
+                continue
+            sets.append(f"{key} = %s")
+            values.append(value)
+
+        if not sets:
+            raise ValueError("No updates provided for ai_ema_20_patterns.")
+
+        values.append(pattern_id)
+        sql = f"UPDATE {self._table} SET {', '.join(sets)} WHERE id = %s"
+        with self._db.connection() as conn, conn.cursor() as cursor:
+            cursor.execute(sql, tuple(values))
+            return cursor.rowcount
+
+    def fetch_patterns(
+        self,
+        pattern_id: Optional[int] = None,
+        symbol: Optional[str] = None,
+        timeframe: Optional[str] = None,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        sql_parts = [
+            "SELECT",
+            "vtp.*,",
+            "tpa.id AS touch_price_action_id,",
+            "tpa.zone_id AS touch_price_action_zone_id,",
+            "tpa.zone_touch_id AS touch_price_action_zone_touch_id,",
+            "tpa.max_favorable_rr AS touch_price_action_max_favorable_rr",
+            f"FROM {self._table} AS vtp",
+            "LEFT JOIN ai_zone_touch_price_actions AS tpa",
+            "  ON tpa.pattern_type = 'V_TOP'",
+            "  AND tpa.v_top_id = vtp.id",
+            "WHERE 1=1",
+        ]
+        params: list[Any] = []
+
+        if pattern_id is not None:
+            sql_parts.append("AND vtp.id = %s")
+            params.append(pattern_id)
+        if symbol is not None:
+            sql_parts.append("AND vtp.symbol = %s")
+            params.append(symbol)
+        if timeframe is not None:
+            sql_parts.append("AND vtp.timeframe = %s")
+            params.append(timeframe)
+
+        sql_parts.append("ORDER BY vtp.id DESC")
+        sql_parts.append("LIMIT %s")
+        params.append(max(1, min(limit, 500)))
+
+        with self._db.connection() as conn, conn.cursor() as cursor:
+            cursor.execute(" ".join(sql_parts), tuple(params))
+            return list(cursor.fetchall())
 
 
 class ZoneRelationshipRepository:
@@ -1478,6 +1742,20 @@ def update_double_top_pattern(
 
 
 @tool
+def get_double_top_patterns(
+    pattern_id: Annotated[Optional[int], "Optional ai_double_top_patterns.id filter."] = None,
+    symbol: Annotated[Optional[str], "Optional symbol filter."] = None,
+    timeframe: Annotated[Optional[str], "Optional timeframe filter."] = None,
+    limit: Annotated[int, "Maximum rows to return (1-500)."] = 50,
+) -> dict[str, Any]:
+    """Fetch double top patterns with optional filters."""
+
+    repo = _get_double_top_pattern_repo()
+    rows = repo.fetch_patterns(pattern_id=pattern_id, symbol=symbol, timeframe=timeframe, limit=limit)
+    return {"count": len(rows), "patterns": rows}
+
+
+@tool
 def add_double_bottom_pattern(
     symbol: Annotated[str, "Symbol identifier that matches the pattern."],
     timeframe: Annotated[str, "Timeframe enum: 1m,3m,5m,10m,15m,30m,1H."],
@@ -1610,6 +1888,20 @@ def update_double_bottom_pattern(
     }
     rows = repo.update_pattern(pattern_id, updates)
     return {"double_bottom_pattern_id": pattern_id, "rows_updated": rows}
+
+
+@tool
+def get_double_bottom_patterns(
+    pattern_id: Annotated[Optional[int], "Optional ai_double_bottom_patterns.id filter."] = None,
+    symbol: Annotated[Optional[str], "Optional symbol filter."] = None,
+    timeframe: Annotated[Optional[str], "Optional timeframe filter."] = None,
+    limit: Annotated[int, "Maximum rows to return (1-500)."] = 50,
+) -> dict[str, Any]:
+    """Fetch double bottom patterns with optional filters."""
+
+    repo = _get_double_bottom_pattern_repo()
+    rows = repo.fetch_patterns(pattern_id=pattern_id, symbol=symbol, timeframe=timeframe, limit=limit)
+    return {"count": len(rows), "patterns": rows}
 
 
 @tool
@@ -1769,6 +2061,20 @@ def add_ema_20_pattern(
 
 
 @tool
+def get_v_top_patterns(
+    pattern_id: Annotated[Optional[int], "Optional ai_v_top_patterns.id filter."] = None,
+    symbol: Annotated[Optional[str], "Optional symbol filter."] = None,
+    timeframe: Annotated[Optional[str], "Optional timeframe filter."] = None,
+    limit: Annotated[int, "Maximum rows to return (1-500)."] = 50,
+) -> dict[str, Any]:
+    """Fetch V top patterns with optional filters."""
+
+    repo = _get_v_top_pattern_repo()
+    rows = repo.fetch_patterns(pattern_id=pattern_id, symbol=symbol, timeframe=timeframe, limit=limit)
+    return {"count": len(rows), "patterns": rows}
+
+
+@tool
 def update_ema_20_pattern(
     ema_20_pattern_id: Annotated[int, "Existing ai_ema_20_patterns.id to update."],
     pattern_timestamp: Annotated[Optional[str], "Optional EMA interaction timestamp (YYYY-MM-DD HH:MM:SS)."] = None,
@@ -1811,6 +2117,20 @@ def update_ema_20_pattern(
 
 
 @tool
+def get_ema_20_patterns(
+    pattern_id: Annotated[Optional[int], "Optional ai_ema_20_patterns.id filter."] = None,
+    symbol: Annotated[Optional[str], "Optional symbol filter."] = None,
+    timeframe: Annotated[Optional[str], "Optional timeframe filter."] = None,
+    limit: Annotated[int, "Maximum rows to return (1-500)."] = 50,
+) -> dict[str, Any]:
+    """Fetch EMA-20 patterns with optional filters."""
+
+    repo = _get_ema20_pattern_repo()
+    rows = repo.fetch_patterns(pattern_id=pattern_id, symbol=symbol, timeframe=timeframe, limit=limit)
+    return {"count": len(rows), "patterns": rows}
+
+
+@tool
 def add_zone_relationship(
     child_zone_id: Annotated[int, "Child ai_zones.id that references a parent zone."],
     parent_zone_id: Annotated[int, "Parent ai_zones.id that the child depends on."],
@@ -1850,12 +2170,16 @@ ZONE_TOOLS = [
     update_zone_touch_price_action,
     add_double_top_pattern,
     update_double_top_pattern,
+    get_double_top_patterns,
     add_double_bottom_pattern,
     update_double_bottom_pattern,
+    get_double_bottom_patterns,
     add_v_top_pattern,
     update_v_top_pattern,
+    get_v_top_patterns,
     add_ema_20_pattern,
     update_ema_20_pattern,
+    get_ema_20_patterns,
     add_zone_relationship,
 ]
 MARKET_TOOLS = [*TRADING_TOOLS, *ZONE_TOOLS]
@@ -1889,11 +2213,15 @@ __all__ = [
     "update_zone_touch_price_action",
     "add_double_top_pattern",
     "update_double_top_pattern",
+    "get_double_top_patterns",
     "add_double_bottom_pattern",
     "update_double_bottom_pattern",
+    "get_double_bottom_patterns",
     "add_v_top_pattern",
     "update_v_top_pattern",
+    "get_v_top_patterns",
     "add_ema_20_pattern",
     "update_ema_20_pattern",
+    "get_ema_20_patterns",
     "add_zone_relationship",
 ]

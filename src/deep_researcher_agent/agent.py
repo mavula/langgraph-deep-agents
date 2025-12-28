@@ -64,7 +64,7 @@ max_concurrent_validation_units = 3
 max_validator_iterations = 3
 
 # Tools available to the validation and data prep sub-agents.
-sub_agent_tools = [think_tool, get_today_str_tool, pyodide_sandbox, double_top_peaks, *MARKET_TOOLS]
+sub_agent_tools = [think_tool, get_today_str_tool, pyodide_sandbox, *MARKET_TOOLS]
 
 # Core tools available to the primary agent.
 built_in_tools = [
@@ -75,7 +75,6 @@ built_in_tools = [
     read_todos,
     get_today_str_tool,
     pyodide_sandbox,
-    double_top_peaks,
     *MARKET_TOOLS,
 ]
 
@@ -114,7 +113,7 @@ double_top_agent = {
     "name": "double-top-pattern-detector",
     "description": "Detect double top patterns in price data.",
     "prompt": DOUBLE_TOP_PATTERN_INSTRUCTIONS,
-    "tools": ["think_tool", "pyodide_sandbox", "double_top_peaks"],
+    "tools": ["think_tool", "pyodide_sandbox" ],
 }
 
 double_bottom_agent = {

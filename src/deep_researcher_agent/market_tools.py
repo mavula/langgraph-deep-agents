@@ -1189,6 +1189,12 @@ def create_zone(
 def update_zone(
     zone_id: Annotated[int, "Existing ai_zones.id to update."],
     status: Annotated[Optional[str], "Optional status update."] = None,
+    zone_type: Annotated[Optional[str], "Optional zone type update (DEMAND or SUPPLY)."] = None,
+    zone_role: Annotated[Optional[str], "Optional zone role update (ORIGIN, RETEST, FLIP)."] = None,
+    structure_pattern: Annotated[
+        Optional[str],
+        "Optional structure pattern update: RALLY_BASE_RALLY, DROP_BASE_RALLY, RALLY_BASE_DROP, DROP_BASE_DROP, OTHER.",
+    ] = None,
     confidence_score: Annotated[Optional[int], "Optional confidence score update."] = None,
     notes: Annotated[Optional[str], "Optional notes update."] = None,
     poc_migrated_price: Annotated[Optional[float], "Optional migrated POC price update."] = None,
@@ -1205,6 +1211,9 @@ def update_zone(
     repo = _get_zone_repo()
     updates = {
         "status": status,
+        "zone_type": zone_type,
+        "zone_role": zone_role,
+        "structure_pattern": structure_pattern,
         "confidence_score": confidence_score,
         "notes": notes,
         "poc_migrated_price": poc_migrated_price,

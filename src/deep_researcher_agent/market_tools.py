@@ -414,6 +414,60 @@ class ZoneTouchRepository:
             cursor.execute(sql, tuple(values))
             return int(cursor.lastrowid)
 
+    def update_touch(self, touch_id: int, updates: dict[str, Any]) -> int:
+        sets = []
+        values: list[Any] = []
+        for key, value in updates.items():
+            if value is None:
+                continue
+            sets.append(f"{key} = %s")
+            values.append(value)
+
+        if not sets:
+            raise ValueError("No updates provided for ai_zone_touches.")
+
+        values.append(touch_id)
+        sql = f"UPDATE {self._table} SET {', '.join(sets)} WHERE id = %s"
+        with self._db.connection() as conn, conn.cursor() as cursor:
+            cursor.execute(sql, tuple(values))
+            return cursor.rowcount
+
+    def fetch_touches(
+        self,
+        touch_id: Optional[int] = None,
+        zone_id: Optional[int] = None,
+        symbol: Optional[str] = None,
+        timeframe: Optional[str] = None,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        sql_parts = [
+            "SELECT *",
+            f"FROM {self._table}",
+            "WHERE 1=1",
+        ]
+        params: list[Any] = []
+
+        if touch_id is not None:
+            sql_parts.append("AND id = %s")
+            params.append(touch_id)
+        if zone_id is not None:
+            sql_parts.append("AND zone_id = %s")
+            params.append(zone_id)
+        if symbol is not None:
+            sql_parts.append("AND symbol = %s")
+            params.append(symbol)
+        if timeframe is not None:
+            sql_parts.append("AND timeframe = %s")
+            params.append(timeframe)
+
+        sql_parts.append("ORDER BY touch_start_ts DESC")
+        sql_parts.append("LIMIT %s")
+        params.append(max(1, min(limit, 500)))
+
+        with self._db.connection() as conn, conn.cursor() as cursor:
+            cursor.execute(" ".join(sql_parts), tuple(params))
+            return list(cursor.fetchall())
+
 
 class ZoneTouchPriceActionRepository:
     """Repository for inserting touch price actions into ai_zone_touch_price_actions."""
@@ -1191,6 +1245,8 @@ def update_zone(
     status: Annotated[Optional[str], "Optional status update."] = None,
     zone_type: Annotated[Optional[str], "Optional zone type update (DEMAND or SUPPLY)."] = None,
     zone_role: Annotated[Optional[str], "Optional zone role update (ORIGIN, RETEST, FLIP)."] = None,
+    price_low: Annotated[Optional[float], "Optional low price update."] = None,
+    price_high: Annotated[Optional[float], "Optional high price update."] = None,
     structure_pattern: Annotated[
         Optional[str],
         "Optional structure pattern update: RALLY_BASE_RALLY, DROP_BASE_RALLY, RALLY_BASE_DROP, DROP_BASE_DROP, OTHER.",
@@ -1213,6 +1269,8 @@ def update_zone(
         "status": status,
         "zone_type": zone_type,
         "zone_role": zone_role,
+        "price_low": price_low,
+        "price_high": price_high,
         "structure_pattern": structure_pattern,
         "confidence_score": confidence_score,
         "notes": notes,
@@ -1529,6 +1587,90 @@ def add_zone_touch(
 
 
 @tool
+def update_zone_touch(
+    touch_id: Annotated[int, "Existing ai_zone_touches.id to update."],
+    zone_id: Annotated[Optional[int], "Optional ai_zones.id update."] = None,
+    symbol: Annotated[Optional[str], "Optional symbol update."] = None,
+    timeframe: Annotated[Optional[str], "Optional timeframe update."] = None,
+    touch_number: Annotated[Optional[int], "Optional touch number update."] = None,
+    touch_start_ts: Annotated[Optional[str], "Optional touch start timestamp update (YYYY-MM-DD HH:MM:SS)."] = None,
+    touch_end_ts: Annotated[Optional[str], "Optional touch end timestamp update (YYYY-MM-DD HH:MM:SS)."] = None,
+    touch_price_low: Annotated[Optional[float], "Optional low price update."] = None,
+    touch_price_high: Annotated[Optional[float], "Optional high price update."] = None,
+    touch_price_close: Annotated[Optional[float], "Optional close price update."] = None,
+    candle_open: Annotated[Optional[float], "Optional reference candle open update."] = None,
+    candle_high: Annotated[Optional[float], "Optional reference candle high update."] = None,
+    candle_low: Annotated[Optional[float], "Optional reference candle low update."] = None,
+    candle_close: Annotated[Optional[float], "Optional reference candle close update."] = None,
+    candle_volume: Annotated[Optional[int], "Optional reference candle volume update."] = None,
+    touch_type: Annotated[
+        Optional[str],
+        "Optional touch type update: WICK, BODY, MID, FRONT_RUN, OTHER.",
+    ] = None,
+    zone_status_before: Annotated[
+        Optional[str],
+        "Optional zone status before touch: PENDING, ACTIVE, TOUCHED, VIOLATED, INVALIDATED.",
+    ] = None,
+    zone_status_after: Annotated[
+        Optional[str],
+        "Optional zone status after touch: PENDING, ACTIVE, TOUCHED, VIOLATED, INVALIDATED.",
+    ] = None,
+    reaction_outcome: Annotated[
+        Optional[str],
+        "Optional reaction outcome update: RESPECTED, REJECTED, BROKEN, NO_FILL, OTHER.",
+    ] = None,
+    reaction_comment: Annotated[Optional[str], "Optional reaction comment update."] = None,
+) -> dict[str, Any]:
+    """Update selected fields on an existing ai_zone_touches row."""
+
+    repo = _get_zone_touch_repo()
+    updates = {
+        "zone_id": zone_id,
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "touch_number": touch_number,
+        "touch_start_ts": touch_start_ts,
+        "touch_end_ts": touch_end_ts,
+        "touch_price_low": touch_price_low,
+        "touch_price_high": touch_price_high,
+        "touch_price_close": touch_price_close,
+        "candle_open": candle_open,
+        "candle_high": candle_high,
+        "candle_low": candle_low,
+        "candle_close": candle_close,
+        "candle_volume": candle_volume,
+        "touch_type": touch_type,
+        "zone_status_before": zone_status_before,
+        "zone_status_after": zone_status_after,
+        "reaction_outcome": reaction_outcome,
+        "reaction_comment": reaction_comment,
+    }
+    rows = repo.update_touch(touch_id, updates)
+    return {"touch_id": touch_id, "rows_updated": rows}
+
+
+@tool
+def get_zone_touch(
+    touch_id: Annotated[Optional[int], "Optional ai_zone_touches.id filter."] = None,
+    zone_id: Annotated[Optional[int], "Optional ai_zones.id filter."] = None,
+    symbol: Annotated[Optional[str], "Optional symbol filter."] = None,
+    timeframe: Annotated[Optional[str], "Optional timeframe filter."] = None,
+    limit: Annotated[int, "Maximum rows to return (1-500)."] = 50,
+) -> dict[str, Any]:
+    """Fetch zone touches with optional filters."""
+
+    repo = _get_zone_touch_repo()
+    rows = repo.fetch_touches(
+        touch_id=touch_id,
+        zone_id=zone_id,
+        symbol=symbol,
+        timeframe=timeframe,
+        limit=limit,
+    )
+    return {"count": len(rows), "touches": rows}
+
+
+@tool
 def add_zone_touch_price_action(
     symbol: Annotated[str, "Symbol identifier that matches the zone touch."],
     timeframe: Annotated[str, "Timeframe enum value: 1m,3m,5m,10m,15m,30m,1H."],
@@ -1624,6 +1766,10 @@ def add_double_top_pattern(
     peak1_price: Annotated[float, "Price at the first peak."],
     peak2_price: Annotated[float, "Price at the second peak."],
     zone_id: Annotated[Optional[int], "Optional ai_zones.id associated with the pattern."] = None,
+    touch_price_action_id: Annotated[
+        Optional[int],
+        "Optional ai_zone_touch_price_actions.id linked to this pattern.",
+    ] = None,
     neckline_timestamp: Annotated[Optional[str], "Optional neckline timestamp (YYYY-MM-DD HH:MM:SS)."] = None,
     confirm_timestamp: Annotated[Optional[str], "Optional confirmation timestamp (YYYY-MM-DD HH:MM:SS)."] = None,
     neckline_price: Annotated[Optional[float], "Optional neckline price."] = None,
@@ -1660,6 +1806,7 @@ def add_double_top_pattern(
         "symbol": symbol,
         "timeframe": timeframe,
         "zone_id": zone_id,
+        "touch_price_action_id": touch_price_action_id,
         "peak1_timestamp": peak1_timestamp,
         "peak2_timestamp": peak2_timestamp,
         "neckline_timestamp": neckline_timestamp,
@@ -1692,6 +1839,10 @@ def add_double_top_pattern(
 def update_double_top_pattern(
     pattern_id: Annotated[int, "Existing ai_double_top_patterns.id to update."],
     zone_id: Annotated[Optional[int], "Optional ai_zones.id associated with the pattern."] = None,
+    touch_price_action_id: Annotated[
+        Optional[int],
+        "Optional ai_zone_touch_price_actions.id linked to this pattern.",
+    ] = None,
     neckline_timestamp: Annotated[Optional[str], "Optional neckline timestamp (YYYY-MM-DD HH:MM:SS)."] = None,
     confirm_timestamp: Annotated[Optional[str], "Optional confirmation timestamp (YYYY-MM-DD HH:MM:SS)."] = None,
     neckline_price: Annotated[Optional[float], "Optional neckline price."] = None,
@@ -1726,6 +1877,7 @@ def update_double_top_pattern(
     repo = _get_double_top_pattern_repo()
     updates = {
         "zone_id": zone_id,
+        "touch_price_action_id": touch_price_action_id,
         "neckline_timestamp": neckline_timestamp,
         "confirm_timestamp": confirm_timestamp,
         "neckline_price": neckline_price,
@@ -1773,6 +1925,10 @@ def add_double_bottom_pattern(
     bottom1_price: Annotated[float, "Price at the first bottom."],
     bottom2_price: Annotated[float, "Price at the second bottom."],
     zone_id: Annotated[Optional[int], "Optional ai_zones.id associated with the pattern."] = None,
+    touch_price_action_id: Annotated[
+        Optional[int],
+        "Optional ai_zone_touch_price_actions.id linked to this pattern.",
+    ] = None,
     neckline_timestamp: Annotated[Optional[str], "Optional neckline timestamp (YYYY-MM-DD HH:MM:SS)."] = None,
     confirm_timestamp: Annotated[Optional[str], "Optional confirmation timestamp (YYYY-MM-DD HH:MM:SS)."] = None,
     neckline_price: Annotated[Optional[float], "Optional neckline price."] = None,
@@ -1809,6 +1965,7 @@ def add_double_bottom_pattern(
         "symbol": symbol,
         "timeframe": timeframe,
         "zone_id": zone_id,
+        "touch_price_action_id": touch_price_action_id,
         "bottom1_timestamp": bottom1_timestamp,
         "bottom2_timestamp": bottom2_timestamp,
         "neckline_timestamp": neckline_timestamp,
@@ -1841,6 +1998,10 @@ def add_double_bottom_pattern(
 def update_double_bottom_pattern(
     pattern_id: Annotated[int, "Existing ai_double_bottom_patterns.id to update."],
     zone_id: Annotated[Optional[int], "Optional ai_zones.id associated with the pattern."] = None,
+    touch_price_action_id: Annotated[
+        Optional[int],
+        "Optional ai_zone_touch_price_actions.id linked to this pattern.",
+    ] = None,
     neckline_timestamp: Annotated[Optional[str], "Optional neckline timestamp (YYYY-MM-DD HH:MM:SS)."] = None,
     confirm_timestamp: Annotated[Optional[str], "Optional confirmation timestamp (YYYY-MM-DD HH:MM:SS)."] = None,
     neckline_price: Annotated[Optional[float], "Optional neckline price."] = None,
@@ -1875,6 +2036,7 @@ def update_double_bottom_pattern(
     repo = _get_double_bottom_pattern_repo()
     updates = {
         "zone_id": zone_id,
+        "touch_price_action_id": touch_price_action_id,
         "neckline_timestamp": neckline_timestamp,
         "confirm_timestamp": confirm_timestamp,
         "neckline_price": neckline_price,
@@ -2175,6 +2337,8 @@ ZONE_TOOLS = [
     update_report_note,
     add_zone_note,
     add_zone_touch,
+    update_zone_touch,
+    get_zone_touch,
     add_zone_touch_price_action,
     update_zone_touch_price_action,
     add_double_top_pattern,
@@ -2218,6 +2382,8 @@ __all__ = [
     "ZoneRelationshipRepository",
     "add_zone_note",
     "add_zone_touch",
+    "update_zone_touch",
+    "get_zone_touch",
     "add_zone_touch_price_action",
     "update_zone_touch_price_action",
     "add_double_top_pattern",

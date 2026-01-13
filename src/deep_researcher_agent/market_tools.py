@@ -1798,6 +1798,7 @@ def add_double_top_pattern(
     stop_run_above_highs: Annotated[Optional[bool], "Whether stops were run above highs."] = None,
     quality_score: Annotated[Optional[int], "Optional quality score (0-255)."] = None,
     notes: Annotated[Optional[str], "Optional notes."] = None,
+    tags: Annotated[Optional[str | list[str]], "Optional tags as comma-separated string or list."] = None,
 ) -> dict[str, Any]:
     """Insert a double top pattern row into ai_double_top_patterns."""
 
@@ -1830,6 +1831,7 @@ def add_double_top_pattern(
         "stop_run_above_highs": _coerce_bool(stop_run_above_highs),
         "quality_score": quality_score,
         "notes": notes,
+        "tags": _normalize_tags(tags),
     }
     pattern_id = repo.insert_pattern(payload)
     return {"double_top_pattern_id": pattern_id, "status": "created"}
@@ -1871,6 +1873,7 @@ def update_double_top_pattern(
     stop_run_above_highs: Annotated[Optional[bool], "Whether stops were run above highs."] = None,
     quality_score: Annotated[Optional[int], "Optional quality score (0-255)."] = None,
     notes: Annotated[Optional[str], "Optional notes."] = None,
+    tags: Annotated[Optional[str | list[str]], "Optional tags as comma-separated string or list."] = None,
 ) -> dict[str, Any]:
     """Update selected fields for an existing double top pattern."""
 
@@ -1897,6 +1900,7 @@ def update_double_top_pattern(
         "stop_run_above_highs": _coerce_bool(stop_run_above_highs),
         "quality_score": quality_score,
         "notes": notes,
+        "tags": _normalize_tags(tags),
     }
     rows = repo.update_pattern(pattern_id, updates)
     return {"double_top_pattern_id": pattern_id, "rows_updated": rows}
@@ -1957,6 +1961,7 @@ def add_double_bottom_pattern(
     stop_run_below_lows: Annotated[Optional[bool], "Whether stops were run below lows."] = None,
     quality_score: Annotated[Optional[int], "Optional quality score (0-255)."] = None,
     notes: Annotated[Optional[str], "Optional notes."] = None,
+    tags: Annotated[Optional[str | list[str]], "Optional tags as comma-separated string or list."] = None,
 ) -> dict[str, Any]:
     """Insert a double bottom pattern row into ai_double_bottom_patterns."""
 
@@ -1989,6 +1994,7 @@ def add_double_bottom_pattern(
         "stop_run_below_lows": _coerce_bool(stop_run_below_lows),
         "quality_score": quality_score,
         "notes": notes,
+        "tags": _normalize_tags(tags),
     }
     pattern_id = repo.insert_pattern(payload)
     return {"double_bottom_pattern_id": pattern_id, "status": "created"}
@@ -2030,6 +2036,7 @@ def update_double_bottom_pattern(
     stop_run_below_lows: Annotated[Optional[bool], "Whether stops were run below lows."] = None,
     quality_score: Annotated[Optional[int], "Optional quality score (0-255)."] = None,
     notes: Annotated[Optional[str], "Optional notes."] = None,
+    tags: Annotated[Optional[str | list[str]], "Optional tags as comma-separated string or list."] = None,
 ) -> dict[str, Any]:
     """Update selected fields for an existing double bottom pattern."""
 
@@ -2056,6 +2063,7 @@ def update_double_bottom_pattern(
         "stop_run_below_lows": _coerce_bool(stop_run_below_lows),
         "quality_score": quality_score,
         "notes": notes,
+        "tags": _normalize_tags(tags),
     }
     rows = repo.update_pattern(pattern_id, updates)
     return {"double_bottom_pattern_id": pattern_id, "rows_updated": rows}
@@ -2102,6 +2110,7 @@ def add_v_top_pattern(
     ema20_peak_slope: Annotated[Optional[str], "EMA20 slope at peak: RISING, FALLING, FLAT."] = None,
     quality_score: Annotated[Optional[int], "Optional quality score (0-255)."] = None,
     notes: Annotated[Optional[str], "Optional notes."] = None,
+    tags: Annotated[Optional[str | list[str]], "Optional tags as comma-separated string or list."] = None,
 ) -> dict[str, Any]:
     """Insert a V top pattern row into ai_v_top_patterns."""
 
@@ -2129,6 +2138,7 @@ def add_v_top_pattern(
         "ema20_peak_slope": ema20_peak_slope,
         "quality_score": quality_score,
         "notes": notes,
+        "tags": _normalize_tags(tags),
     }
     pattern_id = repo.insert_pattern(payload)
     return {"v_top_pattern_id": pattern_id, "status": "created"}
@@ -2158,6 +2168,7 @@ def update_v_top_pattern(
     ema20_peak_slope: Annotated[Optional[str], "EMA20 slope at peak: RISING, FALLING, FLAT."] = None,
     quality_score: Annotated[Optional[int], "Optional quality score (0-255)."] = None,
     notes: Annotated[Optional[str], "Optional notes."] = None,
+    tags: Annotated[Optional[str | list[str]], "Optional tags as comma-separated string or list."] = None,
 ) -> dict[str, Any]:
     """Update selected fields for an existing V top pattern."""
 
@@ -2181,6 +2192,7 @@ def update_v_top_pattern(
         "ema20_peak_slope": ema20_peak_slope,
         "quality_score": quality_score,
         "notes": notes,
+        "tags": _normalize_tags(tags),
     }
     rows = repo.update_pattern(pattern_id, updates)
     return {"v_top_pattern_id": pattern_id, "rows_updated": rows}
@@ -2206,6 +2218,7 @@ def add_ema_20_pattern(
     imbalance_side: Annotated[str, "Imbalance enum: NONE, BUY, SELL. Defaults to NONE."] = "NONE",
     imbalance_value: Annotated[Optional[float], "Order flow imbalance metric."] = None,
     notes: Annotated[Optional[str], "Optional notes for the pattern."] = None,
+    tags: Annotated[Optional[str | list[str]], "Optional tags as comma-separated string or list."] = None,
 ) -> dict[str, Any]:
     """Insert a 20 EMA pattern row into ai_ema_20_patterns."""
 
@@ -2226,6 +2239,7 @@ def add_ema_20_pattern(
         "imbalance_side": imbalance_side,
         "imbalance_value": imbalance_value,
         "notes": notes,
+        "tags": _normalize_tags(tags),
     }
     pattern_id = repo.insert_pattern(payload)
     return {"ema_20_pattern_id": pattern_id, "status": "created"}
@@ -2264,6 +2278,7 @@ def update_ema_20_pattern(
     imbalance_side: Annotated[Optional[str], "Imbalance enum: NONE, BUY, SELL."] = None,
     imbalance_value: Annotated[Optional[float], "Order flow imbalance metric."] = None,
     notes: Annotated[Optional[str], "Optional notes for the pattern."] = None,
+    tags: Annotated[Optional[str | list[str]], "Optional tags as comma-separated string or list."] = None,
 ) -> dict[str, Any]:
     """Update selected fields on an existing ai_ema_20_patterns row."""
 
@@ -2282,6 +2297,7 @@ def update_ema_20_pattern(
         "imbalance_side": imbalance_side,
         "imbalance_value": imbalance_value,
         "notes": notes,
+        "tags": _normalize_tags(tags),
     }
     rows = repo.update_pattern(ema_20_pattern_id, updates)
     return {"ema_20_pattern_id": ema_20_pattern_id, "rows_updated": rows}

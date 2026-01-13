@@ -517,9 +517,6 @@ class EmaRepository:
             f"{self._time_frame_column} AS time_frame",
             f"{self._timestamp_column} AS timestamp",
             "20_ema",
-            "50_ema",
-            "100_ema",
-            "200_ema",
             "date_time",
         ]
         select_columns = [col for col in select_columns if col is not None]

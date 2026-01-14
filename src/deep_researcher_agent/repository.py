@@ -75,6 +75,12 @@ class CandleRepository:
         cvd_time_frame_column: str = "time_frame",
         cvd_timestamp_column: str = "timestamp",
         cvd_exchange_column: Optional[str] = "exchange",
+        ema_table: str = "tradingview_ema",
+        ema_symbol_column: str = "symbol",
+        ema_time_frame_column: str = "time_frame",
+        ema_timestamp_column: str = "timestamp",
+        ema_exchange_column: Optional[str] = "exchange",
+        ema_20_column: str = "20_ema",
     ) -> None:
         self._db = db
         self._table = _sanitize_identifier(table, "tradingview_candle_data")
@@ -98,6 +104,14 @@ class CandleRepository:
         self._cvd_exchange_column = (
             _sanitize_identifier(cvd_exchange_column, "exchange") if cvd_exchange_column else None
         )
+        self._ema_table = _sanitize_identifier(ema_table, "tradingview_ema")
+        self._ema_symbol_column = _sanitize_identifier(ema_symbol_column, "symbol")
+        self._ema_time_frame_column = _sanitize_identifier(ema_time_frame_column, "time_frame")
+        self._ema_timestamp_column = _sanitize_identifier(ema_timestamp_column, "timestamp")
+        self._ema_exchange_column = (
+            _sanitize_identifier(ema_exchange_column, "exchange") if ema_exchange_column else None
+        )
+        self._ema_20_column = _sanitize_identifier(ema_20_column, "20_ema")
 
     @classmethod
     def from_env(cls, db: DatabaseClient) -> "CandleRepository":
@@ -120,6 +134,12 @@ class CandleRepository:
             cvd_time_frame_column=os.getenv("CVD_TIME_FRAME_COLUMN", "time_frame"),
             cvd_timestamp_column=os.getenv("CVD_TIMESTAMP_COLUMN", "timestamp"),
             cvd_exchange_column=os.getenv("CVD_EXCHANGE_COLUMN", "exchange"),
+            ema_table=os.getenv("EMA_TABLE", "tradingview_ema"),
+            ema_symbol_column=os.getenv("EMA_SYMBOL_COLUMN", "symbol"),
+            ema_time_frame_column=os.getenv("EMA_TIME_FRAME_COLUMN", "time_frame"),
+            ema_timestamp_column=os.getenv("EMA_TIMESTAMP_COLUMN", "timestamp"),
+            ema_exchange_column=os.getenv("EMA_EXCHANGE_COLUMN", "exchange"),
+            ema_20_column=os.getenv("EMA_20_COLUMN", "20_ema"),
         )
 
     def fetch_candles(
@@ -145,6 +165,7 @@ class CandleRepository:
             "c.low AS low",
             "c.close AS close",
             "c.volume AS volume",
+            f"ema.{self._ema_20_column} AS {self._ema_20_column}",
             "fp.volume_delta AS volume_delta",
             "fp.poc AS poc",
             "fp.vah AS vah",
@@ -166,15 +187,28 @@ class CandleRepository:
             f"fp.{self._footprint_symbol_column} = c.{self._symbol_column} "
             f"AND fp.{self._footprint_time_frame_column} = c.{self._time_frame_column} "
             f"AND fp.{self._footprint_timestamp_column} = c.{self._timestamp_column}",
-            f"LEFT JOIN {self._cvd_table} AS cvd ON "
-            f"cvd.{self._cvd_symbol_column} = c.{self._symbol_column} "
-            f"AND cvd.{self._cvd_time_frame_column} = c.{self._time_frame_column} "
-            f"AND cvd.{self._cvd_timestamp_column} = c.{self._timestamp_column}",
-            "WHERE {symbol_col} = %s AND {time_frame_col} = %s".format(
-                symbol_col=f"c.{self._symbol_column}",
-                time_frame_col=f"c.{self._time_frame_column}",
-            ),
         ]
+        ema_join = (
+            f"LEFT JOIN {self._ema_table} AS ema ON "
+            f"ema.{self._ema_symbol_column} = c.{self._symbol_column} "
+            f"AND ema.{self._ema_time_frame_column} = c.{self._time_frame_column} "
+            f"AND ema.{self._ema_timestamp_column} = c.{self._timestamp_column}"
+        )
+        if self._exchange_column and self._ema_exchange_column:
+            ema_join += f" AND ema.{self._ema_exchange_column} = c.{self._exchange_column}"
+        sql_parts.extend(
+            [
+                ema_join,
+                f"LEFT JOIN {self._cvd_table} AS cvd ON "
+                f"cvd.{self._cvd_symbol_column} = c.{self._symbol_column} "
+                f"AND cvd.{self._cvd_time_frame_column} = c.{self._time_frame_column} "
+                f"AND cvd.{self._cvd_timestamp_column} = c.{self._timestamp_column}",
+                "WHERE {symbol_col} = %s AND {time_frame_col} = %s".format(
+                    symbol_col=f"c.{self._symbol_column}",
+                    time_frame_col=f"c.{self._time_frame_column}",
+                ),
+            ]
+        )
         params: List[Any] = [symbol, time_frame]
 
         if exchange is not None:
@@ -241,6 +275,10 @@ class CandleRepository:
             if open_value is not None and close_value is not None:
                 candle_color = "green" if close_value >= open_value else "red"
                 serialized["candle_color"] = candle_color
+
+            ema_20_value = serialized.get(self._ema_20_column)
+            if ema_20_value is not None:
+                serialized[f"_{self._ema_20_column}"] = ema_20_value
 
             serialized_rows.append(serialized)
 

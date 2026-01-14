@@ -15,7 +15,6 @@ from .database import DatabaseClient
 from .repository import (
     CandleCvdRepository,
     CandleRepository,
-    EmaRepository,
     VolumeFootprintRepository,
 )
 
@@ -42,6 +41,7 @@ class CandleRow(TypedDict, total=False):
     total_fp_volume: float
     volume_diff: float
     candle_color: str
+    _20_ema: float
     cvd: dict[str, Any]
 
 
@@ -50,26 +50,6 @@ class CandleResponse(TypedDict):
     end_timestamp: Optional[str]
     count: int
     candles: list[CandleRow]
-
-
-class EmaRow(TypedDict, total=False):
-    e_id: int
-    exchange: str
-    symbol: str
-    time_frame: str
-    timestamp: str
-    date_time: str
-    _20_ema: float
-    _50_ema: float
-    _100_ema: float
-    _200_ema: float
-
-
-class EmaResponse(TypedDict):
-    start_timestamp: Optional[str]
-    end_timestamp: Optional[str]
-    count: int
-    ema: list[EmaRow]
 
 
 class CurrentDateResponse(TypedDict):
@@ -106,14 +86,6 @@ def _get_candle_repository() -> CandleRepository:
     return CandleRepository.from_env(db_client)
 
 
-@lru_cache
-def _get_ema_repository() -> EmaRepository:
-    """Return a cached EMA repository backed by env configuration."""
-    config = DatabaseConfig.from_env()
-    db_client = DatabaseClient(config)
-    return EmaRepository.from_env(db_client)
-
-
 def _format_timestamp(value: Optional[str]) -> Optional[str]:
     if not value:
         return None
@@ -132,28 +104,6 @@ def _format_candle_response(rows: list[CandleRow]) -> CandleResponse:
         "end_timestamp": _format_timestamp(end_iso),
         "count": len(rows),
         "candles": rows,
-    }
-
-
-def _format_ema_response(rows: list[EmaRow]) -> EmaResponse:
-    start_iso = rows[0]["timestamp"] if rows else None
-    end_iso = rows[-1]["timestamp"] if rows else None
-    normalized_rows: list[EmaRow] = []
-    for row in rows:
-        normalized_rows.append(
-            {
-                **row,
-                "_20_ema": row.get("20_ema"),  # type: ignore[literal-required]
-                "_50_ema": row.get("50_ema"),  # type: ignore[literal-required]
-                "_100_ema": row.get("100_ema"),  # type: ignore[literal-required]
-                "_200_ema": row.get("200_ema"),  # type: ignore[literal-required]
-            }
-        )
-    return {
-        "start_timestamp": _format_timestamp(start_iso),
-        "end_timestamp": _format_timestamp(end_iso),
-        "count": len(rows),
-        "ema": normalized_rows,
     }
 
 
@@ -187,38 +137,6 @@ def get_candles(
         end_timestamp=end_timestamp,
     )
     return _format_candle_response(rows)
-
-
-@tool
-def get_ema(
-    symbol: Annotated[str, "Ticker or instrument identifier exactly as stored in the DB."],
-    time_frame: Annotated[
-        str,
-        "Time frame value stored in the time_frame column (e.g. 1, 5, 60, 1D). '30' is normalized to '30m'.",
-    ],
-    limit: Annotated[int, "Maximum number of rows to return (1-1000)."] = 200,
-    exchange: Annotated[Optional[str], "Optional exchange to filter if multiple venues store the same symbol."] = None,
-    start_timestamp: Annotated[
-        Optional[str],
-        "Inclusive timestamp filter in 'YYYY-MM-DD HH:MM:SS' format.",
-    ] = None,
-    end_timestamp: Annotated[
-        Optional[str],
-        "Inclusive timestamp upper bound in 'YYYY-MM-DD HH:MM:SS' format.",
-    ] = None,
-) -> EmaResponse:
-    """Fetch EMA values for the given symbol/resolution."""
-
-    repository = _get_ema_repository()
-    rows = repository.fetch_ema(
-        symbol=symbol,
-        time_frame=time_frame,
-        limit=limit,
-        exchange=exchange,
-        start_timestamp=start_timestamp,
-        end_timestamp=end_timestamp,
-    )
-    return _format_ema_response(rows)
 
 
 @tool
@@ -2343,7 +2261,7 @@ def add_zone_relationship(
     return {"relationship_id": relationship_id, "status": "created"}
 
 
-TRADING_TOOLS = [get_candles, get_ema, get_current_date, compare_dates]
+TRADING_TOOLS = [get_candles, get_current_date, compare_dates]
 ZONE_TOOLS = [
     create_zone,
     update_zone,
@@ -2378,7 +2296,6 @@ __all__ = [
     "ZONE_TOOLS",
     "MARKET_TOOLS",
     "get_candles",
-    "get_ema",
     "get_current_date",
     "compare_dates",
     "create_zone",

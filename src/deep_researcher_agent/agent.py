@@ -96,13 +96,12 @@ supply_zone_agent = {
 data_prep_agent = {
     "name": "data-prep",
     "description": (
-        "Fetch and prepare candles, EMA, POC, and CVD for a symbol/timeframe/date range. "
+        "Fetch and prepare candles, POC, and CVD for a symbol/timeframe/date range. "
         "Ensure the DeepAgentState has all required series before zone analysis."
     ),
     "prompt": DATA_PREP_INSTRUCTIONS,
     "tools": [
         "get_candles",
-        "get_ema",
         "get_current_date",
         "compare_dates",
         "think_tool",

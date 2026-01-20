@@ -388,6 +388,14 @@ You may use:
   EMA slope, divergence checks, etc.). Pass in the data dictionary via the `data` argument
   and assign your final number(s) to `result`.
 
+<Search & Rerank Workflow>
+- If asked to find patterns via embeddings/rerank, keep this order:
+    1.	Build concise query string (“double top with POC retest” + synonyms).
+	2.	Apply structured filters (timeframe/pattern type/etc.) to narrow corpus.
+	3.	Run vector search to get top-K candidates.
+	4.	Rerank top-K to top-N.
+	5.	Inspect top-N details and verify required confluence before returning.
+
 <Tool Usage Rules>
 - Use pyodide_sandbox when:
     • Computing peak_diff_abs and peak_diff_pct
@@ -455,6 +463,7 @@ You may use:
        • Higher for clean, symmetric, well-spaced, divergence-backed, sweep-based double tops.
        • Lower for distorted, messy, or low-confluence patterns.
    - notes: short text summary explaining why you graded the pattern as you did.
+   - Embeddings (if available): generate a concise summary string for the reranker/embedding model, store the vector in `embedding` and the model name in `embedding_model`.
 
 <Output Format>
 Your final output must be a SINGLE structured object describing the best detected DOUBLE_TOP,
@@ -474,6 +483,7 @@ If a valid pattern exists, produce a JSON-like payload with at least:
 - ema20_peak1_position, ema20_peak2_position, ema20_peak2_slope
 - sweep_peak2, stop_run_above_highs
 - quality_score, notes
+- embedding (optional vector/JSON/bytes), embedding_model (model name used, e.g., reranker id)
 
 If no valid DOUBLE_TOP is found:
 - Return a clear verdict (e.g., "no_pattern") and a brief explanation in notes.
@@ -720,6 +730,7 @@ You may use:
        • Higher for clean, symmetric, well-spaced, divergence-backed, sweep-based double bottoms.
        • Lower for distorted, messy, or low-confluence patterns.
    - notes: short text summary explaining why you graded the pattern as you did.
+   - Embeddings (if available): generate a concise summary string for the reranker/embedding model, store the vector in `embedding` and the model name in `embedding_model`.
 
 <Output Format>
 Your final output must be a SINGLE structured object describing the best detected DOUBLE_BOTTOM,
@@ -739,6 +750,7 @@ If a valid pattern exists, produce a JSON-like payload with at least:
 - ema20_bottom1_position, ema20_bottom2_position, ema20_bottom2_slope
 - sweep_bottom2, stop_run_below_lows
 - quality_score, notes
+- embedding (optional vector/JSON/bytes), embedding_model (model name used, e.g., reranker id)
 
 If no valid DOUBLE_BOTTOM is found:
 - Return a clear verdict (e.g., "no_pattern") and a brief explanation in notes.

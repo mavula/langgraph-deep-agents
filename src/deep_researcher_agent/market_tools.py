@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import os
 from array import array
 from functools import lru_cache
 from typing import Annotated, Any, Optional, TypedDict, Union
 
+import requests
 from langchain_core.tools import tool
 
 from .config import DatabaseConfig
@@ -104,6 +106,101 @@ def _format_candle_response(rows: list[CandleRow]) -> CandleResponse:
         "end_timestamp": _format_timestamp(end_iso),
         "count": len(rows),
         "candles": rows,
+    }
+
+
+@tool
+def get_ollama_embedding(
+    model: Annotated[str, "Ollama embedding model id (e.g., qwen3-embedding:4b)."],
+    input: Annotated[Union[str, list[str]], "Text to embed (string or list of strings)."],
+    url: Annotated[
+        Optional[str],
+        "Override embed endpoint. Defaults to env OLLAMA_EMBED_URL or https://ollama.sparkinternal.com/api/embed.",
+    ] = None,
+    options: Annotated[Optional[dict[str, Any]], "Optional Ollama options to pass through."] = None,
+    verify_ssl: Annotated[
+        Optional[bool],
+        "Set to False to skip TLS verification (or set env OLLAMA_VERIFY_SSL=false).",
+    ] = None,
+) -> dict[str, Any]:
+    """Call Ollama's /api/embed endpoint and return embeddings."""
+
+    base_url = url or os.getenv("OLLAMA_EMBED_URL", "https://ollama.sparkinternal.com/api/embed")
+    verify = (
+        verify_ssl
+        if verify_ssl is not None
+        else os.getenv("OLLAMA_VERIFY_SSL", "true").lower() not in {"0", "false", "no"}
+    )
+    payload: dict[str, Any] = {"model": model, "input": input}
+    if options:
+        payload["options"] = options
+
+    try:
+        response = requests.post(base_url, json=payload, timeout=30, verify=verify)
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        raise RuntimeError(f"Ollama embed request failed: {exc}") from exc
+
+    data = response.json()
+    embeddings: list[list[float]] = []
+    if "embedding" in data:
+        embeddings = [data["embedding"]]
+    elif "embeddings" in data:
+        embeddings = data["embeddings"]
+
+    return {
+        "model": data.get("model", model),
+        "input_count": len(embeddings),
+        "dimensions": len(embeddings[0]) if embeddings else 0,
+        "embeddings": embeddings,
+        "raw_response": data,
+    }
+
+
+@tool
+def get_ollama_rerank(
+    model: Annotated[str, "Ollama reranker model id (e.g., dengcao/Qwen3-Reranker-4B:Q8_0)."],
+    query: Annotated[str, "Query string to rank against."],
+    documents: Annotated[list[str], "List of documents/passages to rerank."],
+    url: Annotated[
+        Optional[str],
+        "Override rerank endpoint. Defaults to env OLLAMA_RERANK_URL or https://ollama.sparkinternal.com/api/rerank.",
+    ] = None,
+    top_n: Annotated[Optional[int], "Optional number of top documents to return."] = None,
+    options: Annotated[Optional[dict[str, Any]], "Optional Ollama options to pass through."] = None,
+    verify_ssl: Annotated[
+        Optional[bool],
+        "Set to False to skip TLS verification (or set env OLLAMA_VERIFY_SSL=false).",
+    ] = None,
+) -> dict[str, Any]:
+    """Call Ollama's /api/rerank endpoint and return ranked documents."""
+
+    base_url = url or os.getenv("OLLAMA_RERANK_URL", "https://ollama.sparkinternal.com/api/rerank")
+    verify = (
+        verify_ssl
+        if verify_ssl is not None
+        else os.getenv("OLLAMA_VERIFY_SSL", "true").lower() not in {"0", "false", "no"}
+    )
+    payload: dict[str, Any] = {"model": model, "query": query, "documents": documents}
+    if top_n is not None:
+        payload["top_n"] = top_n
+    if options:
+        payload["options"] = options
+
+    try:
+        response = requests.post(base_url, json=payload, timeout=30, verify=verify)
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        raise RuntimeError(f"Ollama rerank request failed: {exc}") from exc
+
+    data = response.json()
+    results = data.get("results", [])
+
+    return {
+        "model": data.get("model", model),
+        "count": len(results),
+        "results": results,
+        "raw_response": data,
     }
 
 
@@ -300,6 +397,38 @@ class ZoneNoteRepository:
         with self._db.connection() as conn, conn.cursor() as cursor:
             cursor.execute(sql, tuple(values))
             return int(cursor.lastrowid)
+
+    def fetch_notes(
+        self,
+        note_id: Optional[int] = None,
+        zone_id: Optional[int] = None,
+        symbol: Optional[str] = None,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        sql_parts = [
+            "SELECT *",
+            f"FROM {self._table}",
+            "WHERE 1=1",
+        ]
+        params: list[Any] = []
+
+        if note_id is not None:
+            sql_parts.append("AND id = %s")
+            params.append(note_id)
+        if zone_id is not None:
+            sql_parts.append("AND zone_id = %s")
+            params.append(zone_id)
+        if symbol is not None:
+            sql_parts.append("AND symbol = %s")
+            params.append(symbol)
+
+        sql_parts.append("ORDER BY id DESC")
+        sql_parts.append("LIMIT %s")
+        params.append(max(1, min(limit, 500)))
+
+        with self._db.connection() as conn, conn.cursor() as cursor:
+            cursor.execute(" ".join(sql_parts), tuple(params))
+            return list(cursor.fetchall())
 
 
 class ZoneTouchRepository:
@@ -1223,6 +1352,23 @@ def get_zones(
         limit=limit,
     )
 
+@tool
+def get_zone_notes(
+    note_id: Annotated[Optional[int], "Optional ai_zone_notes.id filter."] = None,
+    zone_id: Annotated[Optional[int], "Optional zone_id filter."] = None,
+    symbol: Annotated[Optional[str], "Optional symbol filter."] = None,
+    limit: Annotated[int, "Maximum rows to return (1-500)."] = 50,
+) -> list[dict[str, Any]]:
+    """Fetch zone notes from ai_zone_notes with optional filters."""
+
+    repo = _get_zone_note_repo()
+    return repo.fetch_notes(
+        note_id=note_id,
+        zone_id=zone_id,
+        symbol=symbol,
+        limit=limit,
+    )
+
 
 def _normalize_tags(tags: Optional[str | list[str]]) -> Optional[str]:
     if tags is None:
@@ -1717,6 +1863,14 @@ def add_double_top_pattern(
     quality_score: Annotated[Optional[int], "Optional quality score (0-255)."] = None,
     notes: Annotated[Optional[str], "Optional notes."] = None,
     tags: Annotated[Optional[str | list[str]], "Optional tags as comma-separated string or list."] = None,
+    embedding: Annotated[
+        Optional[Any],
+        "Optional embedding payload (vector/list/bytes/JSON string) for retrieval.",
+    ] = None,
+    embedding_model: Annotated[
+        Optional[str],
+        "Model identifier used to produce the embedding (e.g., reranker model name).",
+    ] = None,
 ) -> dict[str, Any]:
     """Insert a double top pattern row into ai_double_top_patterns."""
 
@@ -1750,6 +1904,8 @@ def add_double_top_pattern(
         "quality_score": quality_score,
         "notes": notes,
         "tags": _normalize_tags(tags),
+        "embedding": _serialize_embedding(embedding),
+        "embedding_model": embedding_model,
     }
     pattern_id = repo.insert_pattern(payload)
     return {"double_top_pattern_id": pattern_id, "status": "created"}
@@ -1792,6 +1948,14 @@ def update_double_top_pattern(
     quality_score: Annotated[Optional[int], "Optional quality score (0-255)."] = None,
     notes: Annotated[Optional[str], "Optional notes."] = None,
     tags: Annotated[Optional[str | list[str]], "Optional tags as comma-separated string or list."] = None,
+    embedding: Annotated[
+        Optional[Any],
+        "Updated embedding payload (vector/list/bytes/JSON string) for retrieval.",
+    ] = None,
+    embedding_model: Annotated[
+        Optional[str],
+        "Model identifier used to produce the embedding (e.g., reranker model name).",
+    ] = None,
 ) -> dict[str, Any]:
     """Update selected fields for an existing double top pattern."""
 
@@ -1819,7 +1983,11 @@ def update_double_top_pattern(
         "quality_score": quality_score,
         "notes": notes,
         "tags": _normalize_tags(tags),
+        "embedding": _serialize_embedding(embedding),
+        "embedding_model": embedding_model,
     }
+    if notes is not None:
+        updates["embedding_dirty"] = 1
     rows = repo.update_pattern(pattern_id, updates)
     return {"double_top_pattern_id": pattern_id, "rows_updated": rows}
 
@@ -1835,7 +2003,14 @@ def get_double_top_patterns(
 
     repo = _get_double_top_pattern_repo()
     rows = repo.fetch_patterns(pattern_id=pattern_id, symbol=symbol, timeframe=timeframe, limit=limit)
-    return {"count": len(rows), "patterns": rows}
+    sanitized = []
+    for row in rows:
+        if isinstance(row, dict):
+            row = dict(row)
+            row.pop("embedding", None)
+            row.pop("embedding_model", None)
+        sanitized.append(row)
+    return {"count": len(sanitized), "patterns": sanitized}
 
 
 @tool
@@ -1880,6 +2055,14 @@ def add_double_bottom_pattern(
     quality_score: Annotated[Optional[int], "Optional quality score (0-255)."] = None,
     notes: Annotated[Optional[str], "Optional notes."] = None,
     tags: Annotated[Optional[str | list[str]], "Optional tags as comma-separated string or list."] = None,
+    embedding: Annotated[
+        Optional[Any],
+        "Optional embedding payload (vector/list/bytes/JSON string) for retrieval.",
+    ] = None,
+    embedding_model: Annotated[
+        Optional[str],
+        "Model identifier used to produce the embedding (e.g., reranker model name).",
+    ] = None,
 ) -> dict[str, Any]:
     """Insert a double bottom pattern row into ai_double_bottom_patterns."""
 
@@ -1913,6 +2096,8 @@ def add_double_bottom_pattern(
         "quality_score": quality_score,
         "notes": notes,
         "tags": _normalize_tags(tags),
+        "embedding": _serialize_embedding(embedding),
+        "embedding_model": embedding_model,
     }
     pattern_id = repo.insert_pattern(payload)
     return {"double_bottom_pattern_id": pattern_id, "status": "created"}
@@ -1955,6 +2140,14 @@ def update_double_bottom_pattern(
     quality_score: Annotated[Optional[int], "Optional quality score (0-255)."] = None,
     notes: Annotated[Optional[str], "Optional notes."] = None,
     tags: Annotated[Optional[str | list[str]], "Optional tags as comma-separated string or list."] = None,
+    embedding: Annotated[
+        Optional[Any],
+        "Updated embedding payload (vector/list/bytes/JSON string) for retrieval.",
+    ] = None,
+    embedding_model: Annotated[
+        Optional[str],
+        "Model identifier used to produce the embedding (e.g., reranker model name).",
+    ] = None,
 ) -> dict[str, Any]:
     """Update selected fields for an existing double bottom pattern."""
 
@@ -1982,7 +2175,11 @@ def update_double_bottom_pattern(
         "quality_score": quality_score,
         "notes": notes,
         "tags": _normalize_tags(tags),
+        "embedding": _serialize_embedding(embedding),
+        "embedding_model": embedding_model,
     }
+    if notes is not None:
+        updates["embedding_dirty"] = 1
     rows = repo.update_pattern(pattern_id, updates)
     return {"double_bottom_pattern_id": pattern_id, "rows_updated": rows}
 
@@ -1998,7 +2195,14 @@ def get_double_bottom_patterns(
 
     repo = _get_double_bottom_pattern_repo()
     rows = repo.fetch_patterns(pattern_id=pattern_id, symbol=symbol, timeframe=timeframe, limit=limit)
-    return {"count": len(rows), "patterns": rows}
+    sanitized = []
+    for row in rows:
+        if isinstance(row, dict):
+            row = dict(row)
+            row.pop("embedding", None)
+            row.pop("embedding_model", None)
+        sanitized.append(row)
+    return {"count": len(sanitized), "patterns": sanitized}
 
 
 @tool
@@ -2261,11 +2465,12 @@ def add_zone_relationship(
     return {"relationship_id": relationship_id, "status": "created"}
 
 
-TRADING_TOOLS = [get_candles, get_current_date, compare_dates]
+TRADING_TOOLS = [get_candles, get_ollama_embedding, get_ollama_rerank, get_current_date, compare_dates]
 ZONE_TOOLS = [
     create_zone,
     update_zone,
     get_zones,
+    get_zone_notes,
     add_report_note,
     get_report_notes,
     update_report_note,
@@ -2296,6 +2501,9 @@ __all__ = [
     "ZONE_TOOLS",
     "MARKET_TOOLS",
     "get_candles",
+    "get_ollama_embedding",
+    "get_ollama_rerank",
+    "get_zone_notes",
     "get_current_date",
     "compare_dates",
     "create_zone",

@@ -157,8 +157,6 @@ class CandleRepository:
         time_frame = _normalize_time_frame(time_frame)
 
         select_columns = [
-            f"c.{self._time_frame_column} AS time_frame",
-            f"c.{self._symbol_column} AS symbol",
             f"c.{self._timestamp_column} AS timestamp",
             "c.open AS open",
             "c.high AS high",
@@ -176,8 +174,7 @@ class CandleRepository:
             "cvd.open AS cvd_open",
             "cvd.high AS cvd_high",
             "cvd.low AS cvd_low",
-            "cvd.close AS cvd_close",
-            "cvd.wick_color AS cvd_wick_color",
+            "cvd.close AS cvd_close"
         ]
 
         sql_parts = [
@@ -252,20 +249,12 @@ class CandleRepository:
             cvd_high = serialized.pop("cvd_high", None)
             cvd_low = serialized.pop("cvd_low", None)
             cvd_close = serialized.pop("cvd_close", None)
-            cvd_wick_color = serialized.pop("cvd_wick_color", None)
             cvd: Dict[str, Any] = {
                 "open": cvd_open,
                 "high": cvd_high,
                 "low": cvd_low,
                 "close": cvd_close,
             }
-            wick_color_value: Optional[int] = None
-            if cvd_wick_color is not None:
-                wick_color_value = 1 if cvd_wick_color != 0 else 0
-            elif cvd_close is not None and cvd_open is not None:
-                wick_color_value = 1 if cvd_close < cvd_open else 0
-            if wick_color_value is not None:
-                cvd["wick_color"] = "red" if wick_color_value else "green"
             if any(value is not None for value in cvd.values()):
                 serialized["cvd"] = cvd
 
@@ -349,7 +338,6 @@ class VolumeFootprintRepository:
                 "volume_delta",
                 "levels",
                 "total_fp_volume",
-                "volume_diff",
                 "created_at",
                 "updated_at",
             ]
@@ -464,8 +452,6 @@ class CandleCvdRepository:
             "low",
             "close",
             "ohlc_color",
-            "wick_color",
-            "border_color",
         ]
         select_columns = [col for col in select_columns if col is not None]
 

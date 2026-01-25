@@ -61,7 +61,7 @@ model = _build_model()
 
 # Limits for delegation and sub-agent coordination.
 max_concurrent_validation_units = 3
-max_validator_iterations = 3
+max_analyst_iterations = 3
 
 # Tools available to the validation and data prep sub-agents.
 sub_agent_tools = [think_tool, get_today_str_tool, pyodide_sandbox, *MARKET_TOOLS]
@@ -187,7 +187,7 @@ all_tools = _unique_tools(sub_agent_tools + built_in_tools + delegation_tools)
 # Assemble the full instruction block for the primary agent.
 SUBAGENT_INSTRUCTIONS = SUBAGENT_USAGE_INSTRUCTIONS.format(
     max_concurrent_validation_units=max_concurrent_validation_units,
-    max_validator_iterations=max_validator_iterations,
+    max_analyst_iterations=max_analyst_iterations,
     date=datetime.now().strftime("%a %b %-d, %Y"),
 )
 
